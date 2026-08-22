@@ -1,0 +1,22 @@
+# Cursor Rules
+- Always read `docs/MASTER_CONTEXT.md` first.
+- Recreate / operate from `docs/RUNBOOK.md`.
+- Log sessions in `docs/PROGRESS.md`. App facts in `docs/settings/`.
+- GitHub: https://github.com/ixamal/stems — docs only. Never commit audio, stems, NML, TSI, or master.db.
+- Git authorship: David alone. No `Co-authored-by: Cursor`, `Made-with: Cursor`, or any Cursor trailer.
+- Do not change Traktor / NUO-STEMS / Audio MIDI Setup without a documented rollback.
+
+# Rig
+- Machine: David / Mac (Apple Silicon), host `ix`
+- NUO-STEMS 4 on the same Mac as Traktor Pro 4.5.1
+- Default NUO mode: Traktor Pro 4 Native
+- Library organize lives in https://github.com/ixamal/music_migration
+- Mixer / BlackHole lives in https://github.com/ixamal/blackhole — different repo, different chat
+
+# Phases
+1. Native mode. Prove one track in Traktor.
+2. Batch the playing crate.
+3. Stretch: DAW splits for Maschine only if David asks.
+
+# Journal
+- Narrative → docs/PROGRESS.md; architecture → docs/MASTER_CONTEXT.md; how-to → docs/RUNBOOK.md.

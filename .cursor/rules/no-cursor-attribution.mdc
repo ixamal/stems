@@ -1,0 +1,14 @@
+---
+description: No Cursor git co-author / Made-with attribution
+alwaysApply: true
+---
+
+# Git authorship
+
+All commits and PRs in this repo are authored by David alone.
+
+Never add any of the following to commit messages, PR bodies, or code comments:
+- `Co-authored-by: Cursor`
+- `Co-authored-by: Cursor <cursoragent@cursor.com>`
+- `Made-with: Cursor`
+- Any other Cursor / agent attribution trailer
