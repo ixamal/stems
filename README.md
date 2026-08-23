@@ -1,6 +1,6 @@
 # stems
 
-David’s NUO-STEMS shop on `ix`. I point, the agent heavy-lifts, we meet in the notes and the `py/` tools. [ixamal](https://github.com/ixamal) / [alkalurops.org](https://www.alkalurops.org).
+David’s NUO-STEMS shop on `ix`. [ixamal](https://github.com/ixamal) / [alkalurops.org](https://www.alkalurops.org).
 
 Grab tracks → NUO-STEMS 4 (**Traktor Pro 4 Native**) → extract named parts → catalog under `~/Music/stems_audio`. Same machine as Traktor. Audio stays on disk. Apple Music stays in its own tree.
 
