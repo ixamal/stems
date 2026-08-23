@@ -13,6 +13,11 @@ __pycache__/
 .venv/
 venv/
 
+# Local extract / convert manifests
+config/*.json
+config/*.m3u
+config/*.txt
+
 # Editor
 .idea/
 *.swp
@@ -30,5 +35,6 @@ venv/
 *.nml
 *.tsi
 *.xml
+*.trak
 master.db
 !package.json

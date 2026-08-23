@@ -2,7 +2,7 @@
 - Always read `docs/MASTER_CONTEXT.md` first.
 - Recreate / operate from `docs/RUNBOOK.md`.
 - Log sessions in `docs/PROGRESS.md`. App facts in `docs/settings/`.
-- GitHub: https://github.com/ixamal/stems — docs only. Never commit audio, stems, NML, TSI, or master.db.
+- GitHub: https://github.com/ixamal/stems — docs + `py/` helpers. Never commit audio, stems, NML, TSI, or master.db.
 - Git authorship: David alone. No `Co-authored-by: Cursor`, `Made-with: Cursor`, or any Cursor trailer.
 - Do not change Traktor / NUO-STEMS / Audio MIDI Setup without a documented rollback.
 
