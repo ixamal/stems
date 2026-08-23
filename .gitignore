@@ -15,8 +15,18 @@ venv/
 
 # Local extract / convert manifests
 config/*.json
-config/*.m3u
 config/*.txt
+config/nuo_drop_*/
+
+# Path lists (absolute paths on this Mac — not for git)
+m3u/*.m3u
+m3u/*.txt
+
+# Run artifacts (absolute library paths on ix)
+log/*.log
+log/*.json
+log/*.png
+:memory:.ses
 
 # Editor
 .idea/

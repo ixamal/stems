@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Quarantine anonymous bass/drums/other/vocals WAVs with no track name.
+"""py.exec.cleanup_unknown — quarantine nameless bass/drums/other/vocals WAVs.
 
-These are untagged splits (bass (159).wav) sitting in Unknown Artist /
+These are untagged splits (``bass (159).wav``) sitting in Unknown Artist /
 Unknown Album. Real tracks that merely start with Bass- (Bassnectar) stay.
-Moves to stems_audio/_quarantine/ so Traktor links can be restored.
+Moves to ``stems_audio/_quarantine/`` so Traktor links can be restored.
 """
 
 from __future__ import annotations
@@ -15,8 +15,9 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from py.base import Job, Tool
-from py.paths import CONFIG_DIR, STEMS_AUDIO, ensure_config_dir
+from py.utils.base import Job, Tool
+from py.utils.paths import CONFIG_DIR, STEMS_AUDIO, ensure_config_dir
+from py.utils.runlog import add_log_flags, run_cli
 
 ROLE_WAV = re.compile(r"^(bass|drums|other|vocals)( \(\d+\))?\.wav$", re.I)
 DEFAULT_SOURCE = STEMS_AUDIO / "Unknown Artist" / "Unknown Album"
@@ -61,14 +62,16 @@ class UnknownRoleCleanup(Tool):
     def run(self) -> list[Job]:
         jobs = self.plan()
         self.print_plan(jobs)
+
+        def apply(job: Job) -> dict:
+            assert self.dest is not None
+            self.dest.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(job.source), str(job.dest))
+            return {"handling": "quarantine"}
+
+        jobs = self.execute_logged(jobs, None if self.dry_run else apply)
         if self.dry_run:
             return jobs
-        assert self.dest is not None
-        self.dest.mkdir(parents=True, exist_ok=True)
-        for job in jobs:
-            if job.action != "quarantine":
-                continue
-            shutil.move(str(job.source), str(job.dest))
         ensure_config_dir()
         manifest = CONFIG_DIR / "unknown_role_quarantine.json"
         payload = {
@@ -96,14 +99,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--path", type=Path, default=DEFAULT_SOURCE)
     parser.add_argument("--dest", type=Path, default=None)
     parser.add_argument("--execute", action="store_true")
+    add_log_flags(parser)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     tool = UnknownRoleCleanup(args.path, args.dest, dry_run=not args.execute)
-    tool.run()
-    return 0
+    return run_cli("py.exec.cleanup_unknown", args, tool)
 
 
 if __name__ == "__main__":

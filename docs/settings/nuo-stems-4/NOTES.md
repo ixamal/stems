@@ -1,35 +1,40 @@
 # NUO-STEMS 4
 
-Version seen: **4.0.0**. Badge: **Demo Mode**. License transfer emailed 2026-08-22 — wait for activation before a big queue.
+Version seen: **4.0.0**. Licensed on this Mac 2026-08-23.
+
+**Credit.** [NUO-STEMS](https://nuo-stems.com) is Alex’s product (DJ NUO). The recommended split (`mel_vocals_bs_others`), sibling `{name}.stem.m4a` next to the mix, Rekordbox vocals/instrumental pair, and NI STEM container are the functions we matched. That work is what made a local factory thinkable.
+
+**Why a CLI anyway.** Alex has no CLI planned, and the app does not ingest `.m3u`. David’s library is **35k+** tracks. GUI drop of four files proved the idea; GUI drop of tens of thousands is not a shop. This repo’s job is unattended batch: `python3 -m py.exec.separate` over `m3u/` path lists. NUO stays licensed on `ix` for comparison and for one-off GUI work.
 
 ## Mode
 
-**Traktor Pro 4 Native** — selected on first launch, 2026-08-22.
-
-Creates natively linked STEMS in the Traktor Pro 4 collection. Same job as Traktor’s Generate Stems button.
+**Legacy / Export** as of 2026-08-23. Native was the first-launch pick; the crate and extract tools already assume sibling `.stem.m4a`, and Native hides M3U drop.
 
 | Mode | Use |
 |------|-----|
-| Traktor Pro 4 Native | This Mac. Start here. |
-| Legacy / Export | Other computer → Traktor Utilities on the DJ laptop. |
-| DAW / Non-Traktor | Individual WAV/FLAC or instrumental+acapella. No `.stem.m4a`. Later. |
+| Legacy / Export | This Mac. `{name}.stem.m4a` next to the original. Default. |
+| Traktor Pro 4 Native | Linked `{hash}.stem.mp4` in Traktor’s Stems folder. Parked. |
+| DAW / Non-Traktor | Individual WAV/FLAC. Later. |
 
-Sidebar we have not opened yet: Home, Traktor Pro 4, Traktor Utilities, Settings, Documentation.
+**Rollback to Native:** NUO Settings → mode → Traktor Pro 4 Native. Existing `.stem.m4a` files stay. Do not delete `~/Music/Traktor/Stems/`.
 
-## Where Native writes
+**Legacy settings for this crate (2026-08-23):**
 
-Official FAQ (2026-08-22): Native saves `{hash}.stem.mp4` **only** in the folder set under Traktor Pro 4 Preferences → Stems. Example: `.../Traktor/Stems/069/F0ILIYDQZQLICDIKTDVCBPX0XLPC.stem.mp4`. It does **not** write next to the source MP3, and it does **not** use the NUO-STEMS “output folder.”
+- Output to original folder: **ON** (`/Users/david/Downloads` is only the fallback)
+- Save .wav / Keep WAV/FLAC: **OFF**
+- Save Instrumental & Acapella: **ON** (NUO writes the Rekordbox pair; `py.vocals_instrumental` skips if those siblings exist)
+- Encoding for that pair: prefer **AAC @ 256 kbps** (NI’s stem default). Not WAV. MP3 320 is fine if AAC is not in the dropdown
+- Algorithm: **`mel_vocals_bs_others`** (recommended). Local CLI matches that: Kimberley Mel vocals + ZFTurbo 4-stem **`bs_roformer`** for drums/bass/other, muxed to `{name}.stem.m4a`. `bs_roformer` alone is close; Mel vocals stay when they have audio.
+- Sum of stems = original mix: **ON** (DJ)
 
-`.stem.m4a` next to the original (how `stems_audio` already looks) is **Legacy / Export**. Do not flip Native without a documented rollback.
+M3U is **our** shopping list only (`m3u/`, not `config/`) — NUO rejected `nuo_queue_test4.m3u` (“File format is not supported”). In the GUI, drop the **audio files** (mp3/wav/m4a/aif/flac), or NUO’s Select Files. Local generation is `python3 -m py.exec.separate`.
 
-## Still unknown
+## Native (parked)
 
-- Exact Stems folder path on this Mac (Traktor Preferences)
-- How it finds `collection.nml`
-- Demo limits (count / watermark / export)
+Traktor Preferences `Browser.Dir.GeneratedStems`: `~/Music/Traktor/Stems/`. Empty as of 2026-08-23. Not Apple Music, not `stems_audio`. Native ignores NUO’s output folder and hides queue drag-and-drop. Tracks must already be in `collection.nml`.
 
-After the first generate, extract with `python3 -m py.extract_stems --path <that folder>` (dry-run first). Native stays selected; we do not switch NUO to DAW just to get loose files.
+**If David jams and hits Traktor Generate Stems:** leave the hash file. Harvest later (MASTER_CONTEXT §7).
 
-NUO-STEMS 4.app has **no CLI**. Tracks that need a STEM are listed in `config/nuo_queue.m3u` by `py.vocals_instrumental --queue-only`. Drag that playlist into the app.
+## Load (Legacy)
 
-Log answers here after the first generate.
+NUO does **not** ingest M3U. Path lists: `m3u/nuo_queue_test4.m3u` (proved), `m3u/nuo_queue_known.m3u`, then the rest of the 35k+. Local generation: `python3 -m py.exec.separate`.

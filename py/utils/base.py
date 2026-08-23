@@ -1,10 +1,17 @@
-"""Shared job record and dry-run / execute switch."""
+"""py.utils.base — job record and dry-run / execute switch.
+
+Every CLI tool subclasses :class:`Tool`. ``dry_run`` is the default; pass
+``--execute`` to write. :class:`Job` is the plan row printed to stdout.
+
+:class:`Tool.run_log` is attached by ``py.utils.runlog.run_cli`` so every
+batch writes ``log/*.log``, JSON, and matplotlib charts (verbose default).
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 @dataclass
@@ -26,6 +33,8 @@ class Job:
 class Tool:
     """Base for each CLI tool. Dry-run is the default."""
 
+    run_log: Any = None
+
     def __init__(
         self,
         source: Path,
@@ -38,12 +47,22 @@ class Tool:
         self.dest = Path(dest).expanduser().resolve() if dest else None
         self.dry_run = dry_run
         self.recursive = recursive
+        self.run_log = None
 
     def plan(self) -> list[Job]:
         raise NotImplementedError
 
     def run(self) -> list[Job]:
         raise NotImplementedError
+
+    def execute_logged(
+        self,
+        jobs: list[Job],
+        worker: Callable[[Job], dict[str, Any] | None] | None = None,
+    ) -> list[Job]:
+        from py.utils.runlog import execute_logged
+
+        return execute_logged(self, jobs, worker)
 
     def print_plan(self, jobs: list[Job]) -> None:
         if not jobs:

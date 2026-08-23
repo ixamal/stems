@@ -2,20 +2,20 @@
 - Always read `docs/MASTER_CONTEXT.md` first.
 - Recreate / operate from `docs/RUNBOOK.md`.
 - Log sessions in `docs/PROGRESS.md`. App facts in `docs/settings/`.
-- GitHub: https://github.com/ixamal/stems — docs + `py/` helpers. Never commit audio, stems, NML, TSI, or master.db.
+- GitHub: https://github.com/ixamal/stems — docs + `py/` helpers. Never commit audio, stems, NML, TSI, master.db, or `m3u/*.m3u`.
 - Git authorship: David alone. No `Co-authored-by: Cursor`, `Made-with: Cursor`, or any Cursor trailer.
 - Do not change Traktor / NUO-STEMS / Audio MIDI Setup without a documented rollback.
 
 # Rig
 - Machine: David / Mac (Apple Silicon), host `ix`
-- NUO-STEMS 4 on the same Mac as Traktor Pro 4.5.1
-- Default NUO mode: Traktor Pro 4 Native
-- Library organize lives in https://github.com/ixamal/music_migration
+- NUO-STEMS 4 (Alex / DJ NUO) licensed on the same Mac as Traktor Pro 4.5.1 — functional reference, not the batch tool
+- Generator: local CLI (`py.exec.separate`). Default NUO mode if opened: Legacy / Export (Same as Original). Native is parked.
+- Library: 35k+ under stems_audio. Organize lives in https://github.com/ixamal/music_migration
 - Mixer / BlackHole lives in https://github.com/ixamal/blackhole — different repo, different chat
 
 # Phases
-1. Native mode. Prove one track in Traktor.
-2. Batch the playing crate.
+1. Four-pack from `m3u/nuo_queue_test4.m3u` proved in Traktor (2026-08-23).
+2. Batch `m3u/` queues, then the 35k+ crate. CLI only.
 3. Stretch: DAW splits for Maschine only if David asks.
 
 # Journal

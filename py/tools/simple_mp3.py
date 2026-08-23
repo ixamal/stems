@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""320k MP3 for H2O Audio / kitesurf headsets.
+"""py.tools.simple_mp3 — 320k MP3 for H2O Audio / kitesurf headsets.
 
 Ported from https://github.com/davidrichardnelson/music
-(simple_mp3.py + simple_mp3_folder.py).
-
-This is not the stems_audio catalog. Keep headset dumps in their own folder.
+(simple_mp3.py + simple_mp3_folder.py). Not the stems_audio catalog.
 """
 
 from __future__ import annotations
@@ -13,9 +11,10 @@ import argparse
 import shutil
 from pathlib import Path
 
-from py.base import Job, Tool
-from py.ffmpeg import run_ffmpeg
-from py.paths import SIMPLE_MP3_DIRNAME
+from py.utils.base import Job, Tool
+from py.utils.ffmpeg import run_ffmpeg
+from py.utils.paths import SIMPLE_MP3_DIRNAME
+from py.utils.runlog import add_log_flags, run_cli
 
 CONVERT_EXTS = {".wav", ".m4a", ".mp3", ".aiff", ".aif", ".flac"}
 
@@ -114,15 +113,12 @@ class SimpleMp3(Tool):
     def run(self) -> list[Job]:
         jobs = self.plan()
         self.print_plan(jobs)
-        if self.dry_run:
-            return jobs
-        for job in jobs:
-            if job.action == "skip":
-                continue
+
+        def apply(job: Job) -> dict:
             job.dest.parent.mkdir(parents=True, exist_ok=True)
             if job.action == "copy":
                 shutil.copy2(job.source, job.dest)
-                continue
+                return {"handling": "copy"}
             run_ffmpeg(
                 [
                     "-i",
@@ -138,7 +134,9 @@ class SimpleMp3(Tool):
                 ],
                 dry_run=False,
             )
-        return jobs
+            return {"handling": "convert"}
+
+        return self.execute_logged(jobs, None if self.dry_run else apply)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -153,6 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-recursive", action="store_true")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--execute", action="store_true")
+    add_log_flags(parser)
     return parser
 
 
@@ -168,8 +167,7 @@ def main(argv: list[str] | None = None) -> int:
         collect=args.command == "collect",
         force=args.force,
     )
-    tool.run()
-    return 0
+    return run_cli("py.tools.simple_mp3", args, tool)
 
 
 if __name__ == "__main__":

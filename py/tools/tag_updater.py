@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Write artist / title from 'Artist - Title' filenames.
+"""py.tools.tag_updater — artist / title from ``Artist - Title`` filenames.
 
 Ported from https://github.com/davidrichardnelson/music (tag_updater.py).
-Skips files that already have matching tags unless --force.
+Skips files that already have matching tags unless ``--force``.
 """
 
 from __future__ import annotations
@@ -14,7 +14,8 @@ from mutagen import File as MutagenFile
 from mutagen.easyid3 import EasyID3
 from mutagen.mp3 import MP3
 
-from py.base import Job, Tool
+from py.utils.base import Job, Tool
+from py.utils.runlog import add_log_flags, run_cli
 
 TAG_EXTS = {".mp3", ".m4a", ".mp4"}
 
@@ -117,13 +118,12 @@ class TagUpdater(Tool):
     def run(self) -> list[Job]:
         jobs = self.plan()
         self.print_plan(jobs)
-        if self.dry_run:
-            return jobs
-        for job in jobs:
-            if job.action != "tag":
-                continue
+
+        def apply(job: Job) -> dict:
             self._write(job.source, job.extra["artist"], job.extra["title"])
-        return jobs
+            return {"handling": "tag"}
+
+        return self.execute_logged(jobs, None if self.dry_run else apply)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -134,6 +134,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--recursive", action="store_true")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--execute", action="store_true")
+    add_log_flags(parser)
     return parser
 
 
@@ -145,8 +146,7 @@ def main(argv: list[str] | None = None) -> int:
         recursive=args.recursive,
         force=args.force,
     )
-    tool.run()
-    return 0
+    return run_cli("py.tools.tag_updater", args, tool)
 
 
 if __name__ == "__main__":

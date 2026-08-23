@@ -1,7 +1,12 @@
-"""Machine paths and filename rules.
+"""Machine paths and filename rules for the stems crate.
 
-stems_audio is the DJ stem tree. Apple Music lives elsewhere
-(Media.localized) and is not written by this package.
+``~/Music/stems_audio`` is the DJ tree (Traktor / Rekordbox). Apple Music
+lives under ``~/Music/Music/Media.localized`` and is never written here —
+that catalog belongs to music_migration.
+
+Playlists (``.m3u``) live in ``m3u/`` at the repo root, parallel to
+``config/`` so queue lists do not mix with JSON manifests. Run logs live
+in ``log/`` (verbose default on every CLI).
 """
 
 from __future__ import annotations
@@ -9,8 +14,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+# py/utils/paths.py → repo root is two parents up from this file's package dir.
+REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_DIR = REPO_ROOT / "config"
+M3U_DIR = REPO_ROOT / "m3u"
+LOG_DIR = REPO_ROOT / "log"
 
 STEMS_AUDIO = Path.home() / "Music" / "stems_audio"
 APPLE_MUSIC_MEDIA = Path.home() / "Music" / "Music" / "Media.localized"
@@ -71,8 +79,21 @@ INVALID_FS_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
 def ensure_config_dir() -> Path:
+    """JSON manifests (quarantine, numbered-dupe). Not playlists."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     return CONFIG_DIR
+
+
+def ensure_m3u_dir() -> Path:
+    """Local path lists for NUO / py.exec.separate. Not committed."""
+    M3U_DIR.mkdir(parents=True, exist_ok=True)
+    return M3U_DIR
+
+
+def ensure_log_dir() -> Path:
+    """Run logs, JSON, and matplotlib charts. Committed as workflow examples."""
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    return LOG_DIR
 
 
 def sanitize(part: str, fallback: str) -> str:

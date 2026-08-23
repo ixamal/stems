@@ -9,8 +9,9 @@ Where a STEM exists, write siblings as AAC:
 
 Rekordbox gets those two regular files. Traktor keeps the four-stem container.
 
-Where no STEM sibling exists: append the source track to config/nuo_queue.m3u.
-NUO-STEMS 4 has no CLI — drag that playlist into the app (Native still on).
+Where no STEM sibling exists: append the source track to ``m3u/nuo_queue.m3u``.
+That list is for ``py.exec.separate`` (35k+ crate). NUO-STEMS has no CLI and
+rejects ``.m3u`` drops. JSON notes stay under ``config/``.
 """
 
 from __future__ import annotations
@@ -22,16 +23,19 @@ from pathlib import Path
 
 from mutagen.mp4 import MP4
 
-from py.base import Job, Tool
-from py.catalog import StemCatalog, read_tags, role_from_name
-from py.ffmpeg import FFmpegError, audio_stream_codecs, run_ffmpeg
-from py.paths import (
+from py.utils.base import Job, Tool
+from py.utils.catalog import StemCatalog, read_tags, role_from_name
+from py.utils.ffmpeg import FFmpegError, audio_stream_codecs, run_ffmpeg
+from py.utils.runlog import add_log_flags, run_cli
+from py.utils.paths import (
     CONFIG_DIR,
+    M3U_DIR,
     PAIR_ROLES,
     SOURCE_TRACK_EXTS,
     STEMS_AUDIO,
     container_basename,
     ensure_config_dir,
+    ensure_m3u_dir,
     is_stem_container,
     sibling_stem,
     skip_tree,
@@ -69,7 +73,7 @@ class VocalsInstrumental(Tool):
         self.limit = limit
         self.mix_codec = mix_codec
         self.catalog = StemCatalog(None if inplace else self.dest)
-        self.queue_path = CONFIG_DIR / NUO_QUEUE_NAME
+        self.queue_path = M3U_DIR / NUO_QUEUE_NAME
 
     def _iter_files(self):
         if self.source.is_file():
@@ -239,6 +243,7 @@ class VocalsInstrumental(Tool):
 
     def _write_queue(self, jobs: list[Job]) -> None:
         queued = [job.source for job in jobs if job.action == "queue"]
+        ensure_m3u_dir()
         ensure_config_dir()
         lines = ["#EXTM3U\n"] + [f"{path}\n" for path in queued]
         self.queue_path.write_text("".join(lines))
@@ -270,33 +275,38 @@ class VocalsInstrumental(Tool):
                 print(f"  … {len(extracts) - 20} more extracts")
             if queued:
                 print(f"queue ({len(queued)}) → {self.queue_path}")
-            return jobs
-        failed = 0
-        for i, job in enumerate(extracts, start=1):
-            try:
-                job.dest.parent.mkdir(parents=True, exist_ok=True)
-                if job.role == "vocals":
-                    self._extract_acapella(job.source, job.dest)
-                elif job.role == "instrumental":
-                    self._extract_instrumental(job.source, job.dest)
-                else:
-                    continue
-                meta = job.extra
-                self._tag(
-                    job.dest,
-                    str(meta.get("title") or job.source.stem),
-                    str(meta.get("artist") or "Unknown Artist"),
-                    str(meta.get("album") or "Unknown Album"),
-                    job.role,
-                )
-                if not self.inplace:
-                    self.catalog.note_written(job.dest)
-                print(f"ok {i}/{len(extracts)} {job.describe()}", flush=True)
-            except Exception as exc:
-                failed += 1
-                print(f"fail {i}/{len(extracts)} {job.source.name} [{job.role}]: {exc}", flush=True)
-        if failed:
-            print(f"{failed} extracts failed", flush=True)
+            return self.execute_logged(jobs, None)
+
+        def apply(job: Job) -> dict:
+            job.dest.parent.mkdir(parents=True, exist_ok=True)
+            if job.role == "vocals":
+                self._extract_acapella(job.source, job.dest)
+            elif job.role == "instrumental":
+                self._extract_instrumental(job.source, job.dest)
+            else:
+                raise RuntimeError(f"unexpected role {job.role}")
+            meta = job.extra
+            self._tag(
+                job.dest,
+                str(meta.get("title") or job.source.stem),
+                str(meta.get("artist") or "Unknown Artist"),
+                str(meta.get("album") or "Unknown Album"),
+                job.role,
+            )
+            if not self.inplace:
+                self.catalog.note_written(job.dest)
+            from py.utils.meta import copy_source_tags
+
+            copy_source_tags(
+                job.source,
+                job.dest,
+                title_suffix=job.role,
+            )
+            if job.role == "vocals":
+                return {"vocals": "present", "handling": "wrote_vocals"}
+            return {"instrumental": "kept", "handling": "wrote_instrumental"}
+
+        jobs = self.execute_logged(jobs, apply)
         if queued:
             self._write_queue(jobs)
         return jobs
@@ -323,6 +333,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--alac", action="store_true", help="Encode the mix as ALAC instead of AAC")
     parser.add_argument("--no-recursive", action="store_true")
     parser.add_argument("--execute", action="store_true")
+    add_log_flags(parser)
     return parser
 
 
@@ -340,8 +351,7 @@ def main(argv: list[str] | None = None) -> int:
         limit=args.limit,
         mix_codec="alac" if args.alac else "aac",
     )
-    tool.run()
-    return 0
+    return run_cli("py.exec.vocals_instrumental", args, tool)
 
 
 if __name__ == "__main__":

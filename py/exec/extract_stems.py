@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Extract NI STEM streams into individually named files.
+"""py.exec.extract_stems — pull drums / bass / other / acapella out of a STEM.
 
 Ported from https://github.com/davidrichardnelson/music (extract_stems.py).
 
-Default dest is ~/Music/stems_audio/{Artist}/{Album}/{Title} - {role}.m4a
-so crates stay out of Apple Music. Dry-run unless --execute.
+NI stream map: 1 drums, 2 bass, 3 other, 4 acapella (see ``py.utils.extraction``).
+Default dest is ``~/Music/stems_audio/{Artist}/{Album}/{Title} - {role}.m4a``.
+Dry-run unless ``--execute``. Does not modify the container.
 """
 
 from __future__ import annotations
@@ -17,10 +18,11 @@ from mutagen import File as MutagenFile
 from mutagen.id3 import TALB, TIT2, TPE1
 from mutagen.mp4 import MP4
 
-from py.base import Job, Tool
-from py.catalog import StemCatalog, read_tags
-from py.ffmpeg import run_ffmpeg
-from py.paths import STEMS_AUDIO, STEM_ROLES, container_basename, is_stem_container
+from py.utils.base import Job, Tool
+from py.utils.catalog import StemCatalog, read_tags
+from py.utils.ffmpeg import run_ffmpeg
+from py.utils.paths import STEMS_AUDIO, STEM_ROLES, container_basename, is_stem_container
+from py.utils.runlog import add_log_flags, run_cli
 
 
 class StemExtractor(Tool):
@@ -122,27 +124,37 @@ class StemExtractor(Tool):
     def run(self) -> list[Job]:
         jobs = self.plan()
         self.print_plan(jobs)
-        if self.dry_run:
-            return jobs
-        for job in jobs:
-            if job.action != "extract" or job.stream_id is None:
-                continue
+
+        def apply(job: Job) -> dict:
+            if job.stream_id is None:
+                raise RuntimeError("extract job missing stream_id")
             job.dest.parent.mkdir(parents=True, exist_ok=True)
             args = ["-i", str(job.source), "-map", f"0:a:{job.stream_id}"]
             if self.fmt == "m4a":
                 args.extend(["-c", "copy"])
             args.append(str(job.dest))
             run_ffmpeg(args, dry_run=False)
-            meta = job.extra
-            self._tag_output(
-                job.dest,
-                str(meta.get("title") or job.source.stem),
-                str(meta.get("artist") or "Unknown Artist"),
-                str(meta.get("album") or "Unknown Album"),
-                job.role or "stem",
-            )
+            if self.fmt == "m4a":
+                from py.utils.meta import copy_source_tags
+
+                copy_source_tags(job.source, job.dest, title_suffix=job.role)
+            else:
+                meta = job.extra
+                self._tag_output(
+                    job.dest,
+                    str(meta.get("title") or job.source.stem),
+                    str(meta.get("artist") or "Unknown Artist"),
+                    str(meta.get("album") or "Unknown Album"),
+                    job.role or "stem",
+                )
             if not self.inplace:
                 self.catalog.note_written(job.dest)
+            vocals = "present" if job.role in {"acapella", "vocals"} else "n/a"
+            return {"handling": f"extract_{job.role}", "vocals": vocals}
+
+        jobs = self.execute_logged(jobs, None if self.dry_run else apply)
+        if self.dry_run:
+            return jobs
         if not self.inplace:
             written = [
                 {
@@ -189,6 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--force", action="store_true", help="Overwrite existing dest")
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    add_log_flags(parser)
     return parser
 
 
@@ -211,8 +224,7 @@ def main(argv: list[str] | None = None) -> int:
         inplace=args.inplace,
         force=args.force,
     )
-    tool.run()
-    return 0
+    return run_cli("py.exec.extract_stems", args, tool)
 
 
 if __name__ == "__main__":

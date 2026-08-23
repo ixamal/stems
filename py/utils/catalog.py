@@ -1,4 +1,4 @@
-"""Place extracted stems under ~/Music/stems_audio/{Artist}/{Album}/.
+"""py.utils.catalog — dest paths under stems_audio and skip-if-present.
 
 Keeps the DJ stem tree separate from Apple Music (Media.localized).
 Duplicate detection is conservative: skip if the dest already exists,
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from mutagen import File as MutagenFile
 
-from py.paths import (
+from py.utils.paths import (
     CONFIG_DIR,
     STEMS_AUDIO,
     ensure_config_dir,
@@ -72,6 +72,59 @@ def read_tags(path: Path) -> tuple[str, str, str]:
     album = sanitize(album, "Unknown Album")
     title = sanitize(title, path.stem)
     return artist, album, title
+
+
+def audio_snapshot(path: Path) -> dict:
+    """Mutagen + size snapshot for run JSON. Best-effort; never raises."""
+    out: dict = {
+        "path": str(path),
+        "name": path.name,
+        "exists": path.is_file(),
+        "size_bytes": None,
+        "artist": None,
+        "album": None,
+        "title": None,
+        "genre": None,
+        "date": None,
+        "length_s": None,
+        "bitrate": None,
+        "sample_rate": None,
+        "channels": None,
+        "mime": None,
+    }
+    try:
+        if path.is_file():
+            out["size_bytes"] = path.stat().st_size
+    except OSError:
+        pass
+    try:
+        audio = MutagenFile(path, easy=True)
+    except Exception as exc:
+        out["error"] = str(exc)
+        return out
+    if audio is None:
+        return out
+    info = getattr(audio, "info", None)
+    if info is not None:
+        length = getattr(info, "length", None)
+        bitrate = getattr(info, "bitrate", None)
+        out["length_s"] = float(length) if length else None
+        out["bitrate"] = int(bitrate) if bitrate else None
+        rate = getattr(info, "sample_rate", None)
+        out["sample_rate"] = int(rate) if rate else None
+        channels = getattr(info, "channels", None)
+        out["channels"] = int(channels) if channels else None
+    mime = getattr(audio, "mime", None)
+    if mime:
+        out["mime"] = list(mime) if not isinstance(mime, str) else [mime]
+    tags = audio.tags
+    if tags is not None:
+        out["artist"] = _first(tags, ("albumartist", "artist")) or None
+        out["album"] = _first(tags, ("album",)) or None
+        out["title"] = _first(tags, ("title",)) or None
+        out["genre"] = _first(tags, ("genre",)) or None
+        out["date"] = _first(tags, ("date", "year")) or None
+    return out
 
 
 @dataclass

@@ -1,0 +1,19 @@
+# Stem factory + shared py/ tools. One file so `pip install -r requirements.txt`
+# at the repo root gets mutagen *and* the Mel / BS-RoFormer stack.
+#
+# Needs Python 3.10–3.13 (Homebrew python@3.12 on ix). System 3.9 will fail.
+# First pair run downloads vocals_mel_band_roformer.ckpt (~1 GB cache dir).
+# First container run downloads model_bs_roformer_ep_17_sdr_9.6568.ckpt (~503 MB).
+#
+# Also required on PATH (not pip): ffmpeg, MP4Box (brew install ffmpeg gpac).
+# matplotlib + psutil: run logs / charts under log/.
+# GUI: brew install python-tk@3.12 (Aqua progress window; not PyQt).
+
+mutagen>=1.47.0
+matplotlib>=3.8.0
+psutil>=5.9.0
+audio-separator>=0.40.0
+onnxruntime>=1.19.0
+audioread>=3.0.0
+librosa>=0.10,<1.0
+Lossless-BS-RoFormer>=1.0.0

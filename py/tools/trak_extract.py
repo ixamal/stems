@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Unpack Traktor .trak archives into a folder + M3U.
+"""py.tools.trak_extract — unpack Traktor ``.trak`` archives into a folder + M3U.
 
 Ported from https://github.com/davidrichardnelson/music (trak_extract.py).
-Skips a set if its output folder already has the playlist unless --force.
+Skips a set if its output folder already has the playlist unless ``--force``.
 """
 
 from __future__ import annotations
@@ -13,7 +13,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from py.base import Job, Tool
+from py.utils.base import Job, Tool
+from py.utils.runlog import add_log_flags, run_cli
 
 AUDIO_EXTS = {".wav", ".aif", ".aiff", ".mp3", ".flac", ".m4a"}
 
@@ -72,13 +73,10 @@ class TrakExtractor(Tool):
     def run(self) -> list[Job]:
         jobs = self.plan()
         self.print_plan(jobs)
-        if self.dry_run:
-            return jobs
-        assert self.dest is not None
-        self.dest.mkdir(parents=True, exist_ok=True)
-        for job in jobs:
-            if job.action != "extract":
-                continue
+
+        def apply(job: Job) -> dict:
+            assert self.dest is not None
+            self.dest.mkdir(parents=True, exist_ok=True)
             if job.dest.exists() and self.force:
                 shutil.rmtree(job.dest)
             job.dest.mkdir(parents=True, exist_ok=True)
@@ -98,9 +96,14 @@ class TrakExtractor(Tool):
                     playlist = job.dest / f"{job.source.stem}.m3u"
                     lines = ["#EXTM3U\n"] + [f"{name}\n" for name in names]
                     playlist.write_text("".join(lines))
-                else:
-                    print(f"No audio files found in {job.source.name}")
-        return jobs
+                    return {"handling": "extract_trak", "has_audio": True}
+                print(f"No audio files found in {job.source.name}")
+                return {
+                    "handling": "extract_trak_empty",
+                    "has_audio": False,
+                }
+
+        return self.execute_logged(jobs, None if self.dry_run else apply)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -112,6 +115,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--recursive", action="store_true")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--execute", action="store_true")
+    add_log_flags(parser)
     return parser
 
 
@@ -124,8 +128,7 @@ def main(argv: list[str] | None = None) -> int:
         recursive=args.recursive,
         force=args.force,
     )
-    tool.run()
-    return 0
+    return run_cli("py.tools.trak_extract", args, tool)
 
 
 if __name__ == "__main__":

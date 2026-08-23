@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Remove `Name (2).ext` copies when the un-numbered original exists and sizes match.
+"""py.exec.cleanup_numbered — trash ``Name (2).ext`` Finder clones.
 
-Keeps `01 Final Impact.stem.m4a`. Trashes `01 Final Impact (2).stem.m4a` if
-the byte size is identical. Does not touch `{name} - vocals.m4a` pairs.
+Keeps ``01 Final Impact.stem.m4a``. Trashes ``01 Final Impact (2).stem.m4a``
+if sizes match (default tolerance 0.05). Does not touch Rekordbox pair files.
 """
 
 from __future__ import annotations
@@ -14,8 +14,9 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from py.base import Job, Tool
-from py.paths import CONFIG_DIR, STEMS_AUDIO, STEM_CONTAINERS, ensure_config_dir, skip_tree
+from py.utils.base import Job, Tool
+from py.utils.paths import CONFIG_DIR, STEMS_AUDIO, STEM_CONTAINERS, ensure_config_dir, skip_tree
+from py.utils.runlog import add_log_flags, run_cli
 
 NUMBERED = re.compile(r"^(.+) \((\d+)\)$")
 
@@ -150,16 +151,12 @@ class NumberedDupeCleanup(Tool):
         if not jobs:
             print("Nothing to do.")
         if self.dry_run:
-            return jobs
-        failed = 0
-        for job in trash_jobs:
-            try:
-                trash(job.source)
-            except OSError as exc:
-                failed += 1
-                print(f"failed {job.source.name}: {exc}")
-        if failed:
-            print(f"{failed} trash moves failed")
+            return self.execute_logged(jobs, None)
+        def apply(job: Job) -> dict:
+            trash(job.source)
+            return {"handling": "trash"}
+
+        jobs = self.execute_logged(jobs, apply)
         ensure_config_dir()
         manifest = CONFIG_DIR / "numbered_dupe_cleanup.json"
         payload = {
@@ -195,6 +192,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--no-recursive", action="store_true")
     parser.add_argument("--execute", action="store_true")
+    add_log_flags(parser)
     return parser
 
 
@@ -206,8 +204,7 @@ def main(argv: list[str] | None = None) -> int:
         recursive=not args.no_recursive,
         tolerance=args.tolerance,
     )
-    tool.run()
-    return 0
+    return run_cli("py.exec.cleanup_numbered", args, tool)
 
 
 if __name__ == "__main__":

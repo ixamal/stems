@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Make files Apple-friendly without touching the Music.app library.
+"""py.utils.apple — Apple-friendly transcode; never Music.app.
 
 Ported from https://github.com/davidrichardnelson/music
-(convert_to_apple_friendly.py).
+(``convert_to_apple_friendly.py``).
 
-Video: H.264 + AAC MP4.
-Audio: AAC M4A for later Apple Music import if David wants it.
-Never writes into ~/Music/Music/Media.localized — that tree is music_migration.
+Video → H.264 + AAC ``.mp4``. Audio → AAC ``.m4a``. Output defaults to an
+``ip/`` folder next to the source.
+
+This package must not write ``~/Music/Music/Media.localized``. That tree is
+the Apple Music library; remaps belong in music_migration. Call
+:func:`refuse_media_localized` before any dest is used.
 """
 
 from __future__ import annotations
@@ -14,12 +17,25 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from py.base import Job, Tool
-from py.ffmpeg import run_ffmpeg
-from py.paths import APPLE_MUSIC_MEDIA
+from py.utils.base import Job, Tool
+from py.utils.ffmpeg import run_ffmpeg
+from py.utils.paths import APPLE_MUSIC_MEDIA
+from py.utils.runlog import add_log_flags, run_cli
 
 VIDEO_EXTS = {".mp4", ".mov", ".m4v"}
 AUDIO_EXTS = {".wav", ".aiff", ".aif", ".flac", ".mp3", ".m4a"}
+
+
+def refuse_media_localized(dest: Path | None) -> None:
+    """Raise if ``dest`` is inside Apple Music's Media.localized tree."""
+    if dest is None:
+        return
+    dest = Path(dest).expanduser().resolve()
+    if dest == APPLE_MUSIC_MEDIA or APPLE_MUSIC_MEDIA in dest.parents:
+        raise ValueError(
+            "Refusing to write into Apple Music Media.localized. "
+            "Keep stems and conversions out of that catalog."
+        )
 
 
 class AppleFriendly(Tool):
@@ -46,13 +62,7 @@ class AppleFriendly(Tool):
             raise ValueError("mode must be auto, video, or audio")
         self.mode = mode
         self.force = force
-        if self.dest and (
-            self.dest == APPLE_MUSIC_MEDIA or APPLE_MUSIC_MEDIA in self.dest.parents
-        ):
-            raise ValueError(
-                "Refusing to write into Apple Music Media.localized. "
-                "Keep stems and conversions out of that catalog."
-            )
+        refuse_media_localized(self.dest)
 
     def _wanted(self, path: Path) -> str | None:
         suffix = path.suffix.lower()
@@ -101,13 +111,10 @@ class AppleFriendly(Tool):
     def run(self) -> list[Job]:
         jobs = self.plan()
         self.print_plan(jobs)
-        if self.dry_run:
-            return jobs
-        assert self.dest is not None
-        self.dest.mkdir(parents=True, exist_ok=True)
-        for job in jobs:
-            if job.action != "convert":
-                continue
+
+        def apply(job: Job) -> dict:
+            assert self.dest is not None
+            self.dest.mkdir(parents=True, exist_ok=True)
             kind = job.extra.get("kind")
             if kind == "video":
                 run_ffmpeg(
@@ -146,7 +153,9 @@ class AppleFriendly(Tool):
                     ],
                     dry_run=False,
                 )
-        return jobs
+            return {"handling": f"convert_{kind}"}
+
+        return self.execute_logged(jobs, None if self.dry_run else apply)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -162,6 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--recursive", action="store_true")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--execute", action="store_true")
+    add_log_flags(parser)
     return parser
 
 
@@ -175,8 +185,7 @@ def main(argv: list[str] | None = None) -> int:
         mode=args.mode,
         force=args.force,
     )
-    tool.run()
-    return 0
+    return run_cli("py.utils.apple", args, tool)
 
 
 if __name__ == "__main__":
