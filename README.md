@@ -41,6 +41,7 @@ License: [Apache-2.0](LICENSE).
 | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Local CLI, then extract |
 | [`docs/MASTER_CONTEXT.md`](docs/MASTER_CONTEXT.md) | Paths, package map, what this repo is not |
 | [`docs/PROGRESS.md`](docs/PROGRESS.md) | The log |
+| [`docs/35k-stem-throughput.md`](docs/35k-stem-throughput.md) | RunPod vs GCP/AWS; 35k in a few days, not 92 |
 | [`docs/settings/nuo-stems-4/NOTES.md`](docs/settings/nuo-stems-4/NOTES.md) | NUO app notes |
 | [`docs/settings/py/NOTES.md`](docs/settings/py/NOTES.md) | Tool / class map |
 
