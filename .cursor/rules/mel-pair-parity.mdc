@@ -1,0 +1,10 @@
+---
+description: Rekordbox pair is both-or-neither; always still write the NI STEM.
+alwaysApply: true
+---
+
+# Mel pair parity
+
+If Mel finds no vocals **or** no instrumental, drop both Rekordbox siblings (`{name} - vocals.m4a` / `{name} - instrumental.m4a`) and still write `{name}.stem.m4a` (drums/bass/other). Mute mix: original is the instrumental. Already-acappella: original is the vocal.
+
+`--drop-pairs-only` cleans leftovers without GPU. Mix titles like `(Acapella)` are sources, not generated role files; drop even if the mp3 is gone. Cap 400. Prove with `python -m py.exec.test_pair_drop`.

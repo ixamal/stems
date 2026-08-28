@@ -11,9 +11,10 @@ has no CLI and rejects ``.m3u`` drops. This module is the local factory so a
     {name} - vocals.m4a
     {name} - instrumental.m4a
 
-If the vocals file has no significant audio (mute mix, leftover hiss), we
-print ``we found none`` and delete **both** siblings. The source mix already
-is the instrumental; a second copy is noise.
+If either side of the pair has no significant audio, we print
+``we found none`` and delete **both** siblings. Mute mix: the source
+already is the instrumental. Already-acappella: the source already is
+the vocal. ``{name}.stem.m4a`` is still written (drums/bass/other).
 
 **Traktor container** (ZFTurbo 4-stem BS-RoFormer + MP4Box)::
 
@@ -45,12 +46,13 @@ import tempfile
 from pathlib import Path
 
 from py.utils.base import Job, Tool
-from py.utils.catalog import role_from_name
+from py.utils.catalog import is_generated_role_file
 from py.utils.ffmpeg import (
     audio_duration,
     encode_aac,
     encode_silence_aac,
     is_insignificant_audio,
+    is_vocal_only_pair,
 )
 from py.exec.ni_stem import mux_ni_stem
 from py.utils.paths import (
@@ -67,6 +69,7 @@ from py.utils.runlog import add_log_flags, run_cli
 KIM_MODEL = "vocals_mel_band_roformer.ckpt"
 BS_MODEL = "model_bs_roformer_ep_17_sdr_9.6568.ckpt"
 DEFAULT_QUEUE = M3U_DIR / "nuo_queue_test4.m3u"
+DROP_PAIRS_CAP = 400
 
 
 class SeparatorError(RuntimeError):
@@ -99,14 +102,16 @@ class LocalSeparator(Tool):
         bitrate: str = "256k",
         pair: bool = True,
         container: bool = True,
+        drop_pairs_only: bool = False,
     ) -> None:
         super().__init__(source, STEMS_AUDIO, dry_run=dry_run, recursive=recursive)
         self.force = force
         self.limit = limit
         self.model = model
         self.bitrate = bitrate
-        self.pair = pair
-        self.container = container
+        self.drop_pairs_only = drop_pairs_only
+        self.pair = pair and not drop_pairs_only
+        self.container = container and not drop_pairs_only
         self._skipper = VocalsInstrumental(
             source if source.is_dir() else source.parent,
             dry_run=True,
@@ -129,6 +134,8 @@ class LocalSeparator(Tool):
             return [src]
         if not src.is_dir():
             return []
+        if self.drop_pairs_only:
+            return self._iter_pair_mixes()
         found = []
         iterator = src.rglob("*") if self.recursive else src.iterdir()
         for path in iterator:
@@ -138,10 +145,59 @@ class LocalSeparator(Tool):
                 continue
             if path.suffix.lower() not in SOURCE_TRACK_EXTS:
                 continue
-            if role_from_name(path.name):
+            if is_generated_role_file(path.name):
                 continue
             found.append(path)
         return sorted(found)
+
+    def _mix_path_for_pair(self, pair: Path) -> Path:
+        """Source mix next to a Rekordbox pair file, or a dummy path for dest names."""
+        name = pair.name
+        suffixes = (
+            " - vocals.m4a",
+            " - instrumental.m4a",
+            " - vocals.mp3",
+            " - instrumental.mp3",
+        )
+        base = None
+        for suffix in suffixes:
+            if name.endswith(suffix):
+                base = name[: -len(suffix)]
+                break
+        if base is None:
+            return pair
+        for ext in SOURCE_TRACK_EXTS:
+            cand = pair.parent / f"{base}{ext}"
+            if (
+                cand.is_file()
+                and not is_stem_container(cand)
+                and not is_generated_role_file(cand.name)
+            ):
+                return cand
+        return pair.parent / f"{base}.mp3"
+
+    def _iter_pair_mixes(self) -> list[Path]:
+        """Walk existing Rekordbox pairs so leftover acappellas drop even without a mix file.
+
+        Mix titles like ``(Acapella)`` are not generated role siblings. Pair files
+        still map back when the mp3 is gone (Roland Clark) or would have been
+        skipped by ``role_from_name``.
+        """
+        root = self.source
+        mixes: dict[tuple[str, str], Path] = {}
+        globber = root.rglob if self.recursive else root.glob
+        for pattern in (
+            "* - vocals.m4a",
+            "* - instrumental.m4a",
+            "* - vocals.mp3",
+            "* - instrumental.mp3",
+        ):
+            for pair in globber(pattern):
+                if not pair.is_file() or skip_tree(pair):
+                    continue
+                mix = self._mix_path_for_pair(pair)
+                mixes[(str(mix.parent), mix.stem)] = mix
+        return sorted(mixes.values())
 
     def _vocals_dest(self, src: Path) -> Path:
         existing = self._skipper._pair_already_present(src, "vocals")
@@ -157,10 +213,41 @@ class LocalSeparator(Tool):
     def _alive(self, path: Path) -> bool:
         return path.exists() and path.stat().st_size > 0
 
+    def _pair_drop_kind(self, vocals: Path, instrumental: Path) -> str | None:
+        """``instrumental-only`` or ``vocal-only`` when the Rekordbox pair is noise.
+
+        ``is_insignificant_audio`` treats a missing path as empty, so we only
+        call it on files that exist.
+        """
+        empty_v = vocals.is_file() and is_insignificant_audio(vocals)
+        empty_i = instrumental.is_file() and is_insignificant_audio(instrumental)
+        leftover_i = instrumental.is_file() and not vocals.is_file()
+        if empty_v or leftover_i:
+            return "instrumental-only"
+        if empty_i or (
+            vocals.is_file()
+            and instrumental.is_file()
+            and is_vocal_only_pair(vocals, instrumental)
+        ):
+            return "vocal-only"
+        return None
+
+    def _pair_drop_reason(self, kind: str) -> str:
+        if kind == "vocal-only":
+            return (
+                "we found none — skipped vocals and instrumental "
+                "(original mix is the vocal)"
+            )
+        return (
+            "we found none — skipped vocals and instrumental "
+            "(original mix is the instrumental)"
+        )
+
     def _full_set(self, src: Path) -> tuple[Path, Path, Path] | None:
         """Vocals/acapella + instrumental + stem, all present and usable.
 
-        Mute mixes are not a full set (no pair). ``--force`` ignores this.
+        Mute mixes and already-acappella sources are not a full set (no pair).
+        ``--force`` ignores this.
         """
         dest_v = self._vocals_dest(src)
         dest_i = self._instrumental_dest(src)
@@ -171,7 +258,7 @@ class LocalSeparator(Tool):
             and self._alive(dest_c)
         ):
             return None
-        if is_insignificant_audio(dest_v):
+        if self._pair_drop_kind(dest_v, dest_i):
             return None
         return dest_v, dest_i, dest_c
 
@@ -182,6 +269,8 @@ class LocalSeparator(Tool):
         dest_c = sibling_stem(src) or self._container_dest(src)
         full = None if self.force else self._full_set(src)
         if full is not None:
+            if self.drop_pairs_only:
+                return []
             vocals, instrumental, stem = full
             reason = (
                 "already complete "
@@ -207,27 +296,30 @@ class LocalSeparator(Tool):
                 )
             return jobs
 
-        empty_vocals = dest_v.exists() and is_insignificant_audio(dest_v)
-        vocals_gone = not dest_v.exists()
-        orphan_instrumental = dest_i.exists() and (empty_vocals or vocals_gone)
-        if (empty_vocals or orphan_instrumental) and not self.force:
+        drop_kind = None if self.force else self._pair_drop_kind(dest_v, dest_i)
+        if drop_kind:
             jobs.append(
                 Job(
                     source=src,
                     dest=dest_v if dest_v.exists() else dest_i,
                     action="drop-pair",
                     role="vocals",
-                    reason="we found none",
-                    extra={"instrumental": str(dest_i), "vocals": str(dest_v)},
+                    reason=self._pair_drop_reason(drop_kind),
+                    extra={
+                        "instrumental": str(dest_i),
+                        "vocals": str(dest_v),
+                        "pair_skip": drop_kind,
+                    },
                 )
             )
+        if self.drop_pairs_only:
+            return jobs
         if self.pair:
-            good_pair = dest_v.exists() and dest_i.exists() and not empty_vocals
+            good_pair = dest_v.exists() and dest_i.exists() and drop_kind is None
             cleaned = (
                 dest_c.exists()
                 and not dest_v.exists()
                 and not dest_i.exists()
-                and not empty_vocals
             )
             if good_pair and not self.force:
                 jobs.append(
@@ -238,7 +330,7 @@ class LocalSeparator(Tool):
                         reason=f"already parallel ({dest_v.name})",
                     )
                 )
-            elif empty_vocals or orphan_instrumental:
+            elif drop_kind:
                 pass
             elif cleaned and not self.force:
                 jobs.append(
@@ -246,7 +338,7 @@ class LocalSeparator(Tool):
                         source=src,
                         dest=dest_c,
                         action="skip",
-                        reason="no vocals; original mix is the instrumental",
+                        reason="no Rekordbox pair; original mix is enough",
                     )
                 )
             else:
@@ -288,7 +380,11 @@ class LocalSeparator(Tool):
     def plan(self) -> list[Job]:
         jobs: list[Job] = []
         needed = 0
-        for src in self._iter_tracks():
+        tracks = self._iter_tracks()
+        n = len(tracks)
+        for i, src in enumerate(tracks, 1):
+            if self.drop_pairs_only and (i == 1 or i % 50 == 0 or i == n):
+                print(f"drop-pairs scan {i}/{n}  {src.name}", flush=True)
             planned = self._plan_one(src)
             writes = [job for job in planned if job.action != "skip"]
             if not writes:
@@ -353,12 +449,13 @@ class LocalSeparator(Tool):
                     f"expected {dest_v.name} and {dest_i.name} in temp dir, got {found}"
                 )
             dest_v.parent.mkdir(parents=True, exist_ok=True)
-            if is_insignificant_audio(produced_v):
+            drop_kind = self._pair_drop_kind(produced_v, produced_i)
+            if drop_kind:
                 produced_v.unlink(missing_ok=True)
                 produced_i.unlink(missing_ok=True)
+                job.extra["pair_skip"] = drop_kind
                 print(
-                    f"we found none — skipped vocals and instrumental "
-                    f"(original mix is the instrumental) for {job.source.name}",
+                    f"{self._pair_drop_reason(drop_kind)} for {job.source.name}",
                     flush=True,
                 )
                 return None
@@ -370,11 +467,13 @@ class LocalSeparator(Tool):
             )
             return dest_v
 
-    def _drop_empty_pair(self, vocals: Path, instrumental: Path) -> None:
-        """Delete a null vocals stem and its Rekordbox instrumental sibling.
+    def _drop_empty_pair(
+        self, vocals: Path, instrumental: Path, *, kind: str = "instrumental-only"
+    ) -> None:
+        """Delete both Rekordbox siblings when one side is silence.
 
-        The source mix already *is* the instrumental. Keeping a second copy
-        next to it is noise.
+        Instrumental-only: the source mix already *is* the instrumental.
+        Vocal-only: the source mix already *is* the vocal. ``.stem.m4a`` stays.
         """
         removed: list[str] = []
         for path in (vocals, instrumental):
@@ -382,10 +481,15 @@ class LocalSeparator(Tool):
                 path.unlink()
                 removed.append(path.name)
         if removed:
+            which = (
+                "original mix is the vocal"
+                if kind == "vocal-only"
+                else "original mix is the instrumental"
+            )
             print(
                 "we found none — deleted "
                 + ", ".join(removed)
-                + " (original mix is the instrumental)",
+                + f" ({which})",
                 flush=True,
             )
 
@@ -471,6 +575,13 @@ class LocalSeparator(Tool):
         jobs = self.plan()
         writes = [j for j in jobs if j.action in {"separate", "container", "drop-pair"}]
         skips = [j for j in jobs if j.action == "skip"]
+        if self.drop_pairs_only:
+            drops = [j for j in writes if j.action == "drop-pair"]
+            print(f"drop-pair jobs: {len(drops)} (cap {DROP_PAIRS_CAP})", flush=True)
+            if len(drops) > DROP_PAIRS_CAP:
+                raise SeparatorError(
+                    f"refusing to drop {len(drops)} pairs (cap {DROP_PAIRS_CAP})"
+                )
         mode = "dry-run" if self.dry_run else "execute"
         print(
             f"{mode}: {len(writes)} write / {len(skips)} skip / {len(jobs)} total"
@@ -480,7 +591,11 @@ class LocalSeparator(Tool):
         if self.dry_run:
             for job in jobs[:40]:
                 if job.action == "drop-pair":
-                    print(f"we found none — would delete pair next to {job.source.name}")
+                    kind = job.extra.get("pair_skip") or "instrumental-only"
+                    print(
+                        f"we found none — would delete pair next to "
+                        f"{job.source.name} ({kind})"
+                    )
                 else:
                     print(job.describe())
             if len(jobs) > 40:
@@ -489,23 +604,28 @@ class LocalSeparator(Tool):
 
         def apply(job: Job) -> dict:
             if job.action == "drop-pair":
+                kind = str(job.extra.get("pair_skip") or "instrumental-only")
                 self._drop_empty_pair(
                     Path(str(job.extra.get("vocals") or job.dest)),
                     Path(str(job.extra["instrumental"])),
+                    kind=kind,
                 )
                 return {
-                    "vocals": "none",
+                    "vocals": "present" if kind == "vocal-only" else "none",
                     "instrumental": "dropped",
                     "handling": "dropped_pair",
+                    "pair_skip": kind,
                     "has_audio": True,
                 }
             if job.action == "separate":
                 dest = self._separate_one(job)
                 if dest is None:
+                    kind = str(job.extra.get("pair_skip") or "instrumental-only")
                     return {
-                        "vocals": "none",
+                        "vocals": "present" if kind == "vocal-only" else "none",
                         "instrumental": "dropped",
                         "handling": "dropped_pair",
+                        "pair_skip": kind,
                         "has_audio": True,
                     }
                 return {
@@ -560,6 +680,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Traktor .stem.m4a only (skip the Rekordbox pair)",
     )
+    parser.add_argument(
+        "--drop-pairs-only",
+        action="store_true",
+        help=(
+            "Delete Rekordbox pair files when vocals or instrumental is "
+            "silence. Does not run Mel or mux .stem.m4a (post-batch cleanup)."
+        ),
+    )
     parser.add_argument("--execute", action="store_true")
     add_log_flags(parser)
     return parser
@@ -577,6 +705,7 @@ def main(argv: list[str] | None = None) -> int:
         bitrate=args.bitrate,
         pair=not args.container_only,
         container=not args.pair_only,
+        drop_pairs_only=args.drop_pairs_only,
     )
     return run_cli("py.exec.separate", args, tool)
 

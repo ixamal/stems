@@ -26,6 +26,8 @@ m3u/*.txt
 log/*.log
 log/*.json
 log/*.png
+log/*.out
+log/*.pid
 :memory:.ses
 
 # Editor

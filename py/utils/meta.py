@@ -48,6 +48,12 @@ class MetaError(RuntimeError):
     pass
 
 
+def _captured_text(data: bytes | None) -> str:
+    if not data:
+        return ""
+    return data.decode("utf-8", errors="replace")
+
+
 def _mp4box() -> str:
     path = shutil.which("MP4Box")
     if not path:
@@ -309,11 +315,10 @@ def _has_stem_atom(path: Path) -> bool:
             [_mp4box(), "-info", str(path)],
             check=False,
             capture_output=True,
-            text=True,
         )
     except Exception:
         return False
-    text = (completed.stdout or "") + (completed.stderr or "")
+    text = _captured_text(completed.stdout) + _captured_text(completed.stderr)
     return "stem:" in text.lower() or "\tstem:" in text
 
 
@@ -378,10 +383,9 @@ def _apply_mp4box(dest: Path, meta: SourceMeta, *, title: str) -> None:
             [_mp4box(), "-itags", str(tags_file), "-quiet", str(dest)],
             check=False,
             capture_output=True,
-            text=True,
         )
         if completed.returncode != 0:
-            err = (completed.stderr or completed.stdout or "").strip()
+            err = _captured_text(completed.stderr) or _captured_text(completed.stdout)
             raise MetaError(f"MP4Box -itags failed ({completed.returncode}): {err}")
 
 

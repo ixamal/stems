@@ -16,9 +16,13 @@ export PATH="$PWD/.venv/bin:$PATH"   # Homebrew Python 3.12; system 3.9 will fai
 .venv/bin/python -m py.exec.separate --path m3u/nuo_queue_test4.m3u --execute
 .venv/bin/python -m py.exec.separate --path m3u/nuo_queue_known.m3u --limit 3 --execute
 .venv/bin/python -m py.exec.separate --path m3u/nuo_queue_known.m3u --limit 25 --execute
+.venv/bin/python -m py.exec.separate --path ~/Music/stems_audio --execute   # remaining crate
+# After that job exits — drop leftover mute/acappella pairs, no GPU:
+.venv/bin/python -m py.exec.separate --path ~/Music/stems_audio --drop-pairs-only
+.venv/bin/python -m py.exec.separate --path ~/Music/stems_audio --drop-pairs-only --execute
 ```
 
-Expect sibling `{name}.stem.m4a` (five AAC streams) plus Rekordbox `{name} - vocals.m4a` / `{name} - instrumental.m4a` when vocals have audio. Mute mixes print `we found none` and drop **both** pair files — the original mix is the instrumental.
+Expect sibling `{name}.stem.m4a` (five AAC streams) plus Rekordbox `{name} - vocals.m4a` / `{name} - instrumental.m4a` when **both** sides have audio. If Mel finds no vocals **or** no instrumental, print `we found none`, drop **both** pair files, and still mux `{name}.stem.m4a` (drums/bass/other). Mute mix: original is the instrumental. Already-acappella: original is the vocal.
 
 Verbose logging is on: `log/{stamp}-py.exec.separate.log` plus a JSON sidecar (mutagen, vocals vs none, pass/fail, CPU/GPU/RSS samples) and matplotlib bars. `--quiet` skips that. `--execute` opens an Aqua progress window (filename, bar, live log, then the PNG reports) that stays until **Close**. Completion mails `david@alkalurops.org` via Mail.app with those PNGs attached (subject **STEMS separation — …**). `--no-gui` / `--no-notify` skip those. Needs `brew install python-tk@3.12`. PyQt is not used.
 

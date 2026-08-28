@@ -37,7 +37,7 @@ Stems crates stay under `~/Music/stems_audio`. Apple Music stays under `~/Music/
 |------|--------|
 | Stems tree (DJ crates) | `~/Music/stems_audio/{Artist}/{Album}/` |
 | Extracted roles | `{Title} - drums\|bass\|other\|acapella.m4a` in that album folder |
-| Rekordbox pair (parallel AAC) | `{stem basename} - vocals.m4a` and `{stem basename} - instrumental.m4a` next to the source. Omitted when vocals have no significant audio (original mix is the instrumental). |
+| Rekordbox pair (parallel AAC) | `{stem basename} - vocals.m4a` and `{stem basename} - instrumental.m4a` next to the source. Omitted when **either** side has no significant audio (mute mix: original is the instrumental; already-acappella: original is the vocal). `{name}.stem.m4a` is still written. |
 | Playlists | `m3u/*.m3u` — local path lists, not committed. JSON manifests stay in `config/`. |
 | Run logs | `log/` — `.log` + JSON + matplotlib charts per CLI run. Verbose default. |
 | Apple Music | `~/Music/Music/Media.localized` — **do not write here** |
@@ -76,14 +76,14 @@ Language folders stay sibling: `py/` now, other languages later. Each tool is a 
 
 STEM stream map (NI): `1=drums`, `2=bass`, `3=other` (highs / inst), `4=acapella`. Optional `0=master`. See `py.utils.extraction`.
 
-DJ pair (Rekordbox): **vocals** = Mel (or STEM stream 4). **instrumental** = mix minus vocals. Both sit next to the source. If vocals are null, neither pair file is kept — the original mix already is the instrumental. Tracks with no STEM go to `m3u/nuo_queue.m3u` (path list for the CLI; NUO rejects M3U drops).
+DJ pair (Rekordbox): **vocals** = Mel (or STEM stream 4). **instrumental** = mix minus vocals. Both sit next to the source. If vocals **or** instrumental is null, neither pair file is kept — the original mix already is that side. `{name}.stem.m4a` is still muxed (drums/bass/other). Tracks with no STEM go to `m3u/nuo_queue.m3u` (path list for the CLI; NUO rejects M3U drops).
 
 Rekordbox / Traktor import: add from `stems_audio`. Path remaps stay in [music_migration](https://github.com/ixamal/music_migration).
 
 ## 6. Phases
 
 1. Legacy + Same as Original. Prove four tracks from `m3u/nuo_queue_test4.m3u`. **Done 2026-08-23** (Traktor OK).
-2. Extract vocals/instrumental next to those new containers. **Done** — mute mixes keep neither pair file.
+2. Extract vocals/instrumental next to those new containers. **Done** — mute mixes and already-acappella sources keep neither pair file; `.stem.m4a` still writes.
 3. Batch the rest of the crate from `m3u/` (known 446, then full queue, then the 35k+ library). CLI only.
 4. Only then talk DAW splits for Maschine sampling.
 
@@ -94,6 +94,9 @@ Ideas we are not building yet. Keep them here so a jam does not get lost.
 | Idea | Status |
 |------|--------|
 | **Harvest jam Generate Stems** | Parked 2026-08-23. If David hits Traktor Generate Stems while playing, `{hash}.stem.mp4` lands in `~/Music/Traktor/Stems/`. Later: map AUDIO_ID back to the original, write the Rekordbox pair. Do not rename hash files. |
-| **Local Mel-Band-RoFormer CLI** | Four-pack proved 2026-08-23 (MPS, ~55s/track). Rekordbox pair. Empty vocals print `we found none` and delete **vocals and instrumental** (original mix is the instrumental). |
+| **Local Mel-Band-RoFormer CLI** | Four-pack proved 2026-08-23 (MPS, ~55s/track). Rekordbox pair. Empty vocals **or** empty instrumental: print `we found none` and delete **both** pair files; still write `{name}.stem.m4a`. |
 | **Local BS-RoFormer `.stem.m4a`** | Four-pack proved 2026-08-23 in Traktor. ZFTurbo 4-stem + MP4Box. `python3 -m py.exec.separate`. |
 | **Library catalog JSON + spreadsheet page** | **TODO later.** Dump the 35k+ crate (and generated siblings) to JSON with all metadata; render a webpage spreadsheet. After the factory is trusted on a 25-track check, then the known queue, then the whole tree. |
+| **Skip pair when mix is vocal-only or instrumental-only** | **Proved 2026-08-26.** `--drop-pairs-only` after the 1905-write batch dropped **16** leftover pairs (cap 400); `{name}.stem.m4a` stayed. Mix titles like `(Acapella)` are sources, not role files; pairs still drop if the mp3 is gone. `python -m py.exec.test_pair_drop`. Future factory runs skip the pair when either side is empty and still mux the stem. Apple Music 35k still copies out of `Media.localized` first ([music_migration](https://github.com/ixamal/music_migration)). |
+| **Faster / cloud GPU batch** | **Return-to: RunPod Secure Cloud** (bookmarked 2026-08-24). The `stems_audio` 1905-write run is **done** (2026-08-26). One MPS job at a time. 35k at ~3.8 min/track is ~92 days sequential. Cursor Cloud Agents bill **tokens**, not GPU hours, and never see the audio. When we resume: CUDA Docker of this repo, network volume, prove one album, then 16–32 Secure pods with shard M3Us. Not Community Cloud. Not AWS first. GCP only if GPU quota is already approved — Workspace Business Plus does not discount L4s. |
+| **Intelligent library pass (ID / key / crates)** | Parked 2026-08-24. Ollama + [bangersss-mcp](https://www.npmjs.com/package/bangersss-mcp) is the **organizer** (tags, BPM/key via ffmpeg + keyfinder, dry-mode plans, Rekordbox/Engine). It is **not Shazam**. Identity for unnamed files is Chromaprint/AcoustID (Picard/beets). Mixed in Key is optional for Energy + auto-cues, not a prerequisite for ID. DJCU2 / DJ Cue Bridge move grids and cues between apps after analysis. music_migration already parked Ollama for **genre from David's crates**, not train-on-audio. Copy out of `Media.localized` first. Do not write Apple Music or NML from this repo. |

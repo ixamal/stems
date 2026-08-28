@@ -244,7 +244,13 @@ def infer_vocals(job: Job, extra: dict[str, Any] | None = None) -> str:
     if extra and extra.get("vocals") in {"present", "none", "n/a"}:
         return str(extra["vocals"])
     reason = (job.reason or "").lower()
+    if extra and extra.get("pair_skip") == "vocal-only":
+        return "present"
+    if extra and extra.get("pair_skip") == "instrumental-only":
+        return "none"
     if job.action == "drop-pair" or "we found none" in reason:
+        if "original mix is the vocal" in reason:
+            return "present"
         return "none"
     if "no vocals" in reason:
         return "none"
@@ -489,21 +495,27 @@ class RunLogger:
         self.ended_at = utc_now()
         payload = self._payload()
         self.payload = payload
-        if self.verbose and self.json_path is not None:
-            if self.tracks:
-                self.chart_paths = _draw_charts(self.run_id, payload)
-                payload["charts"] = self.chart_paths
-            self.json_path.write_text(json.dumps(payload, indent=2) + "\n")
-            print(f"run json: {self.json_path}", flush=True)
-            for path in self.chart_paths:
-                print(f"run chart: {path}", flush=True)
-        if self._stdout is not None:
-            sys.stdout = self._stdout
-        if self._stderr is not None:
-            sys.stderr = self._stderr
-        if self._log_file is not None:
-            self._log_file.close()
-            self._log_file = None
+        try:
+            if self.verbose and self.json_path is not None:
+                if self.tracks:
+                    try:
+                        self.chart_paths = _draw_charts(self.run_id, payload)
+                    except Exception as exc:
+                        print(f"matplotlib skipped ({exc})", flush=True)
+                        self.chart_paths = []
+                    payload["charts"] = self.chart_paths
+                self.json_path.write_text(json.dumps(payload, indent=2) + "\n")
+                print(f"run json: {self.json_path}", flush=True)
+                for path in self.chart_paths:
+                    print(f"run chart: {path}", flush=True)
+        finally:
+            if self._stdout is not None:
+                sys.stdout = self._stdout
+            if self._stderr is not None:
+                sys.stderr = self._stderr
+            if self._log_file is not None:
+                self._log_file.close()
+                self._log_file = None
         return self.json_path
 
     def _payload(self) -> dict[str, Any]:
@@ -679,7 +691,10 @@ def run_cli(tool_id: str, args: argparse.Namespace, tool: Tool) -> int:
         except Exception as exc:
             print(f"run failed: {exc}", flush=True)
         finally:
-            logger.close()
+            try:
+                logger.close()
+            except Exception as exc:
+                print(f"run log close failed: {exc}", flush=True)
             payload = logger.payload or {}
             from py.utils.notify import notify_complete, resolve_charts, summary_from_payload
 
@@ -688,7 +703,10 @@ def run_cli(tool_id: str, args: argparse.Namespace, tool: Tool) -> int:
             if want_notify(args, tool.dry_run):
                 notify_complete(title=tool_id, body=summary, payload=payload)
             if panel is not None:
-                panel.finish(summary, charts=charts)
+                try:
+                    panel.finish(summary, charts=charts)
+                except Exception as exc:
+                    print(f"progress GUI finish skipped ({exc})", flush=True)
 
     if panel is None:
         work()
@@ -709,8 +727,24 @@ def _track_labels(tracks: list[dict[str, Any]]) -> list[str]:
         name = str(track.get("name") or Path(str(track.get("source") or "")).name or f"track {i + 1}")
         if len(name) > max_len:
             name = name[: max_len - 1] + "…"
-        labels.append(name)
+        labels.append(_mpl_plain(name))
     return labels
+
+
+def _mpl_plain(text: str) -> str:
+    """Filenames are not math. ``$`` in a title must not enter mathtext."""
+    return text.replace("$", "S")
+
+
+def _chart_ticks(n: int, labels: list[str]) -> tuple[list[int], list[str]]:
+    """Sparse ticks on large batches — 1905 filenames will not fit and can crash layout."""
+    if n <= 24:
+        return list(range(n)), labels
+    step = max(1, n // 16)
+    ticks = list(range(0, n, step))
+    if ticks[-1] != n - 1:
+        ticks.append(n - 1)
+    return ticks, [str(i + 1) for i in ticks]
 
 
 def _draw_charts(run_id: str, payload: dict[str, Any]) -> list[str]:
@@ -721,11 +755,26 @@ def _draw_charts(run_id: str, payload: dict[str, Any]) -> list[str]:
         import matplotlib
 
         matplotlib.use("Agg")
+        if "text.parse_math" in matplotlib.rcParams:
+            matplotlib.rcParams["text.parse_math"] = False
         import matplotlib.pyplot as plt
     except Exception as exc:
         print(f"matplotlib skipped ({exc})", flush=True)
         return []
 
+    try:
+        return _draw_charts_body(run_id, payload, tracks, plt)
+    except Exception as exc:
+        print(f"matplotlib skipped ({exc})", flush=True)
+        return []
+
+
+def _draw_charts_body(
+    run_id: str,
+    payload: dict[str, Any],
+    tracks: list[dict[str, Any]],
+    plt: Any,
+) -> list[str]:
     ensure_log_dir()
     labels = _track_labels(tracks)
     walls = [float(t.get("wall_s") or 0) for t in tracks]
@@ -748,10 +797,11 @@ def _draw_charts(run_id: str, payload: dict[str, Any]) -> list[str]:
     ]
     summary = payload.get("summary") or {}
     n = len(tracks)
+    ticks, tick_labels = _chart_ticks(n, labels)
     tick_rot = 25 if n <= 6 else 40
     tick_size = 9 if n <= 8 else 7
     x = list(range(n))
-    width = max(11.0, min(28.0, 0.55 * n + 8))
+    width = max(11.0, min(28.0, 0.55 * min(n, 40) + 8))
 
     fig, ax = plt.subplots(figsize=(width, 7.2))
     ax.bar(
@@ -764,16 +814,18 @@ def _draw_charts(run_id: str, payload: dict[str, Any]) -> list[str]:
         x,
         elapsed,
         color="#c47b3a",
-        marker="o",
+        marker="o" if n <= 48 else None,
         linewidth=2,
         label="elapsed so far (s)",
         zorder=3,
     )
     ax2.set_ylabel("elapsed so far (seconds)")
     ax2.set_ylim(bottom=0)
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=tick_rot, ha="right", fontsize=tick_size)
-    ax.set_xlabel("source filename")
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(
+        tick_labels, rotation=tick_rot, ha="right", fontsize=tick_size
+    )
+    ax.set_xlabel("source filename" if n <= 24 else "file index")
     h1, l1 = ax.get_legend_handles_labels()
     h2, l2 = ax2.get_legend_handles_labels()
     ax.legend(h1 + h2, l1 + l2, loc="upper left")
@@ -785,7 +837,7 @@ def _draw_charts(run_id: str, payload: dict[str, Any]) -> list[str]:
         if isinstance(rate_mean, (int, float))
         else ""
     )
-    fig.suptitle(f"{payload.get('tool')}  {run_id}", fontsize=11)
+    fig.suptitle(_mpl_plain(f"{payload.get('tool')}  {run_id}"), fontsize=11)
     fig.text(
         0.01,
         0.01,
@@ -806,20 +858,26 @@ def _draw_charts(run_id: str, payload: dict[str, Any]) -> list[str]:
     ax = axes[0][0]
     ax.bar(x, cpu, color="#5a8f5a")
     ax.set_title("CPU % peak (process tree)")
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=tick_rot, ha="right", fontsize=tick_size)
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(
+        tick_labels, rotation=tick_rot, ha="right", fontsize=tick_size
+    )
     ax.set_ylim(bottom=0)
     ax = axes[0][1]
     ax.bar(x, rss, color="#7a5ea8")
     ax.set_title("RSS peak (MB, process tree)")
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=tick_rot, ha="right", fontsize=tick_size)
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(
+        tick_labels, rotation=tick_rot, ha="right", fontsize=tick_size
+    )
     ax.set_ylim(bottom=0)
     ax = axes[1][0]
     ax.bar(x, gpu, color="#a85e5e")
     ax.set_title("GPU allocated peak (MB, parent Torch)")
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=tick_rot, ha="right", fontsize=tick_size)
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(
+        tick_labels, rotation=tick_rot, ha="right", fontsize=tick_size
+    )
     ax.set_ylim(bottom=0)
     ax = axes[1][1]
     vocals = summary.get("vocals") or {}
@@ -855,9 +913,11 @@ def _draw_charts(run_id: str, payload: dict[str, Any]) -> list[str]:
     ax.set_title("pass / fail / vocals vs none")
     ax.tick_params(axis="x", rotation=30)
     fig.suptitle(
-        f"overview  elapsed {_fmt_duration(total)}  ·  "
-        f"mean {_fmt_duration(mean)}/file  ·  "
-        f"s/audio-min={summary.get('sec_per_audio_minute_mean')}"
+        _mpl_plain(
+            f"overview  elapsed {_fmt_duration(total)}  ·  "
+            f"mean {_fmt_duration(mean)}/file  ·  "
+            f"s/audio-min={summary.get('sec_per_audio_minute_mean')}"
+        )
     )
     fig.tight_layout()
     overview_png = LOG_DIR / f"{run_id}-overview.png"

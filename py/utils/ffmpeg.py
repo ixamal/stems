@@ -1,8 +1,8 @@
 """py.utils.ffmpeg — system FFmpeg/ffprobe wrappers.
 
 Nothing ships in git. Homebrew ``ffmpeg`` 9.x on ``ix``. Also: volume
-detection so ``py.exec.separate`` can drop mute-mix vocals instead of
-keeping a 4 kbps husk.
+detection so ``py.exec.separate`` can drop mute-mix vocals *and*
+already-acappella Mel bleed instead of keeping a husk pair.
 """
 
 from __future__ import annotations
@@ -24,6 +24,12 @@ def ffmpeg_bin() -> str:
             "ffmpeg not found. Install with Homebrew: brew install ffmpeg"
         )
     return path
+
+
+def _captured_text(data: bytes | None) -> str:
+    if not data:
+        return ""
+    return data.decode("utf-8", errors="replace")
 
 
 def run_ffmpeg(args: list[str], *, dry_run: bool = False) -> None:
@@ -57,11 +63,10 @@ def probe_format(path: Path) -> dict[str, str]:
         ],
         check=False,
         capture_output=True,
-        text=True,
     )
     if completed.returncode != 0:
         return {}
-    fmt = json.loads(completed.stdout or "{}").get("format") or {}
+    fmt = json.loads(_captured_text(completed.stdout) or "{}").get("format") or {}
     return {str(k): str(v) for k, v in fmt.items() if v is not None}
 
 
@@ -81,9 +86,8 @@ def volume_stats(path: Path) -> tuple[float | None, float | None]:
         ],
         check=False,
         capture_output=True,
-        text=True,
     )
-    text = (completed.stderr or "") + (completed.stdout or "")
+    text = _captured_text(completed.stderr) + _captured_text(completed.stdout)
     mean = max_v = None
     for line in text.splitlines():
         if "mean_volume:" in line:
@@ -103,6 +107,10 @@ def volume_stats(path: Path) -> tuple[float | None, float | None]:
 _EMPTY_BYTES_PER_SEC = 2000.0
 _EMPTY_MEAN_DB = -50.0
 _EMPTY_MAX_DB = -35.0
+# Acappella leftover: Mel still writes an "instrumental" with bleed
+# (Belinda Carlisle: vocals ~-19 dB, instrumental ~-47 dB, peaks remain).
+_VOCAL_ONLY_MEAN_DELTA_DB = 18.0
+_VOCAL_ONLY_MEAN_CEILING_DB = -40.0
 
 
 def is_insignificant_audio(path: Path) -> bool:
@@ -127,6 +135,29 @@ def is_insignificant_audio(path: Path) -> bool:
     if mean is None or max_v is None:
         return False
     return mean < _EMPTY_MEAN_DB and max_v < _EMPTY_MAX_DB
+
+
+def is_vocal_only_pair(vocals: Path, instrumental: Path) -> bool:
+    """True when vocals have energy and the instrumental is leftover bleed.
+
+    ``is_insignificant_audio`` misses Mel bleed on already-acappella sources
+    (peaks remain, mean sits just above the mute floor). Require the
+    instrumental to be much quieter than the vocals *and* quietly mixed.
+    """
+    if not vocals.is_file() or not instrumental.is_file():
+        return False
+    if is_insignificant_audio(vocals):
+        return False
+    if is_insignificant_audio(instrumental):
+        return True
+    v_mean, _v_max = volume_stats(vocals)
+    i_mean, _i_max = volume_stats(instrumental)
+    if v_mean is None or i_mean is None:
+        return False
+    return (
+        (v_mean - i_mean) >= _VOCAL_ONLY_MEAN_DELTA_DB
+        and i_mean < _VOCAL_ONLY_MEAN_CEILING_DB
+    )
 
 
 def encode_aac(src: Path, dest: Path, *, bitrate: str = "256k") -> None:
@@ -176,9 +207,8 @@ def audio_stream_codecs(path: Path) -> list[str]:
         ],
         check=False,
         capture_output=True,
-        text=True,
     )
     if completed.returncode != 0:
         raise FFmpegError(f"ffprobe failed for {path}")
-    streams = json.loads(completed.stdout or "{}").get("streams") or []
+    streams = json.loads(_captured_text(completed.stdout) or "{}").get("streams") or []
     return [str(s.get("codec_name") or "") for s in streams]

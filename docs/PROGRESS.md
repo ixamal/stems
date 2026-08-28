@@ -219,3 +219,42 @@ Generated files on disk were already tagged; Traktor showed filename/empty artis
 **TODO later:** catalog the entire library into JSON with all metadata, and a webpage spreadsheet of it. Not now.
 
 Next: `--limit 25 --execute` from `m3u/nuo_queue_known.m3u` so David can check those in Traktor before the rest of the crate.
+
+---
+
+## 2026-08-23 — Remaining stems_audio
+
+25-track known-queue batch: 24 complete; Belinda Carlisle acappella pair wrote, `.stem.m4a` failed because MP4Box/ffmpeg stderr was decoded as strict UTF-8 (`0xDE` in a PRIV / Latin-1 blob). Decoder now uses `errors=replace`.
+
+Inventory under `~/Music/stems_audio`: **953 mixes still missing** `{name}.stem.m4a` (1364 mixes, 890 stems already). Started `--path ~/Music/stems_audio --execute` (no limit). Complete sets skip. Belinda container retries. ~5–6 min/track → multi-day unattended.
+
+**After this 1905-write batch, not before:** vocal-only sources (already acappella) should drop the Rekordbox pair the same way mute mixes do, and **still** write `{name}.stem.m4a` with drums/bass/other. Do not skip the container. Do not restart the current job for this. Apple Music 35k stays out of `Media.localized`.
+
+At the live pace (520/1905 writes in 985 min → ~3.8 min/track): **35k sequential on this Mac ≈ 92 days**. Cursor Cloud Agents cannot do this (token billing, no 350 GB audio in git, no GPU farm). Cloud GPU hours are the scale path.
+
+---
+
+## 2026-08-24 — Bookmark: RunPod when we leave this Mac
+
+If the 35k crate leaves `ix`, the farm is **RunPod Secure Cloud** (L4 ~$0.49/hr on-demand; ~35–45% cheaper than GCP/AWS L4 VMs; Workspace Business Plus does not discount GCP GPUs). Prove one album, then 16–32 pods. Not Community Cloud. Not this 1905-write job. We shall return.
+
+**Mel pair parity (code on disk 2026-08-24, not in the running process):** if Mel finds no vocals **or** no instrumental, drop both `{name} - vocals.m4a` / `{name} - instrumental.m4a` and still mux `{name}.stem.m4a`. Python **13760** keeps the old module until it exits. After it finishes: `--drop-pairs-only` walks existing pairs (including `(Acapella)` titles and folders where the mix is gone). Leftover acappella pairs this batch already wrote (e.g. Belinda Carlisle, Roland Clark) drop; `.stem.m4a` stays. Do not restart that job.
+
+**After this 1905-write batch, not before (cleanup):** drop leftover vocal-only pairs; `.stem.m4a` stays. Apple Music 35k stays out of `Media.localized`.
+
+**Library intelligence (not stems):** Ollama + bangersss-mcp cannot Shazam the Apple Music tree. Three different jobs: (1) *what is this file* → Chromaprint/AcoustID; (2) *BPM/key/energy/cues* → Traktor (already complete on the migrated crate) or Mixed in Key or bangersss keyfinder; (3) *organize/crate from tags* → Ollama + bangersss dry-mode. DJCU2 bridges apps after analysis. Copy out of `Media.localized` first. music_migration already parked Ollama for genre from David's sets, not train-on-audio.
+
+---
+
+## 2026-08-26 — 1905 writes done; HUD chart crash
+
+`ok 1905/1905` then matplotlib mathtext died on `W3T A$$ PU$$Y` (`$` in a tick label). Stems were already on disk. JSON/PNG never wrote; Close stayed disabled so python **13760** sat in the HUD and blocked the pair-drop waiter. `runlog.close` now writes JSON even if charts fail, skips mathtext, and still enables Close. Then leftover vocal-only pair drop.
+
+`--drop-pairs-only --execute` (no GPU) scanned 1685 existing pairs and dropped **16**. Vocal-only leftovers gone, `.stem.m4a` stayed: Belinda Carlisle *Heaven Is A Place On Earth (Acappella)*, Roland Clark *I Get Deep (Acapella)*, Dan Diamond *Let It Go (Acapella)*, Opus III *It's A Fine Day (Acappella Version)*. Mute/instrumental-only leftovers dropped too (e.g. NIN TRON score, Aphex Twin untitled). A handful of factory writes had already failed because audio-separator stripped `__` / `|` from output names — parked, not this cleanup.
+
+---
+
+## 2026-08-28 — Check-in: pair parity + first crate pass
+
+This `stems_audio` pass is complete: 1905 writes, then 16 pair drops, factory idle. Vocal-only / instrumental-only skip is in `py.exec.separate` for the next run. 35k sequential on this Mac is still ~92 days; RunPod stays the farm bookmark.
+

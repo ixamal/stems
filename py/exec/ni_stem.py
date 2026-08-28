@@ -51,6 +51,13 @@ STEM_UDTA = {
 }
 
 
+def _captured_text(data: bytes | None) -> str:
+    """MP4Box sometimes writes Latin-1 / binary; never decode as strict UTF-8."""
+    if not data:
+        return ""
+    return data.decode("utf-8", errors="replace").strip()
+
+
 def mp4box_bin() -> str:
     path = shutil.which("MP4Box")
     if not path:
@@ -108,9 +115,9 @@ def mux_ni_stem(
         f"0:type=stem:src=base64,{payload}",
         "-quiet",
     ]
-    completed = subprocess.run(cmd, check=False, capture_output=True, text=True)
+    completed = subprocess.run(cmd, check=False, capture_output=True)
     if completed.returncode != 0 or not dest.exists():
-        err = (completed.stderr or completed.stdout or "").strip()
+        err = _captured_text(completed.stderr) or _captured_text(completed.stdout)
         raise StemMuxError(f"MP4Box failed ({completed.returncode}): {err or dest}")
     if dest.stat().st_size == 0:
         raise StemMuxError(f"MP4Box wrote empty file: {dest}")

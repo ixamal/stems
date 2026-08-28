@@ -30,6 +30,13 @@ ROLE_SUFFIX = re.compile(
     re.IGNORECASE,
 )
 
+# Generated siblings: `{name} - vocals.m4a`. Not mix titles like `(Acapella)`.
+_GENERATED_ROLE_SIBLING = re.compile(
+    r"\s+-\s+(drums?|bass|other|highs?|instrumental|inst|melody|"
+    r"acapellas?|acappellas?|vocals?|vox)$",
+    re.IGNORECASE,
+)
+
 
 def _first(tags, keys: tuple[str, ...]) -> str:
     for key in keys:
@@ -50,6 +57,11 @@ def role_from_name(name: str) -> str | None:
     if not match:
         return None
     return normalize_role(match.group(1))
+
+
+def is_generated_role_file(name: str) -> bool:
+    """True for `Title - vocals.m4a`, not `Title (Acapella).mp3`."""
+    return bool(_GENERATED_ROLE_SIBLING.search(Path(name).stem))
 
 
 def read_tags(path: Path) -> tuple[str, str, str]:
