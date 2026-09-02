@@ -22,11 +22,11 @@ other CLIs in ``py/tools``. One requirements file: ``py/exec/requirements.txt``
 | `MetaValidator` | `py.exec.validate_meta` | QA source tags on vocals / instrumental / `.stem.m4a` |
 | `StemCatalog` | `py.utils.catalog` | Artist/Album dest + skip-if-present |
 
-Shared: `py.utils.base` (`Tool` / `Job`), `py.utils.paths`, `py.utils.ffmpeg`, `py.utils.extraction` (NI stream map), `py.utils.runlog` (verbose `log/` + overlay charts), `py.utils.progress` (Aqua HUD until Close), `py.utils.notify` (Mail.app to david@alkalurops.org), `py.utils.meta` (tag copy). Mux: `py.exec.ni_stem` (MP4Box).
+Shared: `py.utils.base` (`Tool` / `Job`), `py.utils.paths`, `py.utils.ffmpeg`, `py.utils.extraction` (NI stream map), `py.utils.runlog` (verbose `log/` + overlay charts), `py.utils.progress` (Aqua HUD until Close), `py.utils.notify` (Mail.app to the local notify address), `py.utils.meta` (tag copy). Mux: `py.exec.ni_stem` (MP4Box).
 
 Playlists: `m3u/` (gitignored `.m3u`). JSON manifests stay in `config/`. Run logs: `log/` (artifacts gitignored; README only).
 
-`--verbose` is the default on every CLI: tee to `.log`, per-track JSON (mutagen, vocals/instrumental, pass/fail, no-audio, GPU/CPU/RSS, timestamps), matplotlib overlay (filename X, time-per-file bars + elapsed line). `--quiet` skips files. `--execute` also opens the Aqua progress window (`brew install python-tk@3.12`) until Close, and mails `david@alkalurops.org` via Mail.app. `--no-gui` / `--no-notify` skip. Not PyQt.
+`--verbose` is the default on every CLI: tee to `.log`, per-track JSON (mutagen, vocals/instrumental, pass/fail, no-audio, GPU/CPU/RSS, timestamps), matplotlib overlay (filename X, time-per-file bars + elapsed line). `--quiet` skips files. `--execute` also opens the Aqua progress window (`brew install python-tk@3.12`) until Close, and mails the local notify address via Mail.app. `--no-gui` / `--no-notify` skip. Not PyQt.
 
 ## Dedup
 

@@ -16,7 +16,7 @@ python3 -m py
 .venv/bin/python -m py.exec.extract_stems --path ~/path/to/stem-containers --execute
 ```
 
-Dry-run is the default. Mute mixes print `we found none` and skip the Rekordbox pair (the original *is* the instrumental). Every CLI tees to `log/` (JSON + matplotlib overlay) unless `--quiet`. `--execute` opens an Aqua progress window (stays until Close) and mails `david@alkalurops.org`.
+Dry-run is the default. Mute mixes print `we found none` and skip the Rekordbox pair (the original *is* the instrumental). Every CLI tees to `log/` (JSON + matplotlib overlay) unless `--quiet`. `--execute` opens an Aqua progress window (stays until Close) and mails the local notify address.
 
 | Module | Class | What |
 |--------|-------|------|

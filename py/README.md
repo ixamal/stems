@@ -14,6 +14,6 @@ python3 -m py
 .venv/bin/python -m py.exec.extract_stems --path ~/Music/stems_audio
 ```
 
-Dry-run unless `--execute`. Verbose `log/` is the default (`--quiet` to skip). `--execute` opens the Aqua progress HUD until Close and mails `david@alkalurops.org`. Never writes `collection.nml`, Rekordbox `master.db`, or Apple Music `Media.localized`.
+Dry-run unless `--execute`. Verbose `log/` is the default (`--quiet` to skip). `--execute` opens the Aqua progress HUD until Close and mails the local notify address. Never writes `collection.nml`, Rekordbox `master.db`, or Apple Music `Media.localized`.
 
 See [`docs/RUNBOOK.md`](../docs/RUNBOOK.md) and [`docs/settings/py/NOTES.md`](../docs/settings/py/NOTES.md).

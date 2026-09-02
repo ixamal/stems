@@ -71,7 +71,7 @@ Language folders stay sibling: `py/` now, other languages later. Each tool is a 
 | `TrakExtractor` | `py.tools.trak_extract` | `.trak` → folder + M3U |
 | `RunLogger` | `py.utils.runlog` | `.log` + JSON + overlay charts under `log/` |
 | `ProgressPanel` | `py.utils.progress` | Aqua HUD (tkinter, not PyQt) on `--execute` |
-| `notify_complete` | `py.utils.notify` | Mail.app to david@alkalurops.org + Mac banner |
+| `notify_complete` | `py.utils.notify` | Mail.app to the local notify address + Mac banner |
 | `MetaValidator` | `py.exec.validate_meta` | QA: generated files must carry source tags |
 
 STEM stream map (NI): `1=drums`, `2=bass`, `3=other` (highs / inst), `4=acapella`. Optional `0=master`. See `py.utils.extraction`.

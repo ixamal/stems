@@ -1,8 +1,8 @@
-"""Completion notify: Mail.app Gmail to David, plus a local banner.
+"""Completion notify: Mail.app plus a local banner.
 
-Sends to ``david@alkalurops.org`` via the Mac Mail app (Gmail if that is
-the default outgoing account). No passwords in the repo. Cursor Cloud
-Agents are not used for this ping.
+The mailbox is a local AES blob under ``~/local_tools/secrets/``
+(gitignored). This module never stores an address. Mail.app is the
+transport. Cursor Cloud Agents are not used for this ping.
 
 A Notification Center banner still fires on this Mac as a fallback.
 """
@@ -16,7 +16,25 @@ from typing import Any
 
 from py.utils.paths import LOG_DIR, REPO_ROOT
 
-NOTIFY_TO = "david@alkalurops.org"
+SECRET_BOX = Path.home() / "local_tools" / "secrets" / "box.py"
+
+
+def notify_to() -> str:
+    """Decrypt the local mailbox. Empty if the blob is missing."""
+    if not SECRET_BOX.is_file():
+        return ""
+    try:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("ix_secret_box", SECRET_BOX)
+        if spec is None or spec.loader is None:
+            return ""
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return str(getattr(mod, "notify_to", lambda: "")() or "").strip()
+    except Exception:
+        return ""
+
 
 TOOL_TITLES = {
     "py.exec.separate": "STEMS separation",
@@ -76,6 +94,10 @@ def resolve_charts(payload: dict[str, Any] | None) -> list[Path]:
 
 def _mail(subject: str, body: str, attachments: list[Path] | None = None) -> bool:
     """Send via Mail.app, PNG reports attached. Returns True if osascript exited 0."""
+    to_addr = notify_to()
+    if not to_addr:
+        print("mail skipped (no local notify address)", flush=True)
+        return False
     attach_lines: list[str] = []
     for path in attachments or []:
         posix = str(path.resolve())
@@ -92,7 +114,7 @@ def _mail(subject: str, body: str, attachments: list[Path] | None = None) -> boo
         f"content:{_applescript_str(body[:3500])}, visible:false}}\n"
         "tell msg\n"
         f"make new to recipient at end of to recipients with properties "
-        f"{{address:{_applescript_str(NOTIFY_TO)}}}\n"
+        f"{{address:{_applescript_str(to_addr)}}}\n"
         f"{attach_block}\n"
         "send\n"
         "end tell\n"
@@ -115,7 +137,7 @@ def _mail(subject: str, body: str, attachments: list[Path] | None = None) -> boo
         return False
     n = len(attachments or [])
     extra = f" + {n} chart png" if n else ""
-    print(f"mail sent to {NOTIFY_TO}{extra}", flush=True)
+    print(f"mail sent{extra}", flush=True)
     return True
 
 
@@ -191,7 +213,7 @@ def notify_complete(
     body: str,
     payload: dict[str, Any] | None = None,
 ) -> None:
-    """Banner on this Mac + Gmail to david@alkalurops.org. Never raises."""
+    """Banner on this Mac + Mail.app to the local address. Never raises."""
     label = display_name(title)
     _banner(label, body)
     subject = mail_subject(payload, title, body)

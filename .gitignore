@@ -6,6 +6,9 @@
 # Secrets / env
 .env
 .env.*
+*.enc
+box.key
+secrets/
 
 # Python
 __pycache__/

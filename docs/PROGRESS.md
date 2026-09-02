@@ -202,7 +202,7 @@ Proved on the next 3 from `m3u/nuo_queue_known.m3u`: **3 pass / 14 skip**, 6 wri
 
 ## 2026-08-23 — Gmail notify; HUD stays until Close
 
-Cloud-agent iPhone ping parked. `--execute` mails `david@alkalurops.org` via Mail.app (plus a Mac banner). Progress window stays until **Close**. `compare_tags` now also requires comment, key, album artist, genre, date when the source has them. Post-process on everything generated so far: **0 mismatch / 49 ok** (`m3u/nuo_queue_known.m3u`) and **0/10** on the four-pack.
+Cloud-agent iPhone ping parked. `--execute` mails the local notify address via Mail.app (plus a Mac banner). Progress window stays until **Close**. `compare_tags` now also requires comment, key, album artist, genre, date when the source has them. Post-process on everything generated so far: **0 mismatch / 49 ok** (`m3u/nuo_queue_known.m3u`) and **0/10** on the four-pack.
 
 Rekordbox pair files were not getting `covr` (MP4Box `cover=` does not stick on those AAC files; Traktor reads mutagen). Pair tagging now uses mutagen. 95 North Barbie Dance vocals/instrumental repaired from the sibling STEM (cover + BPM + key). Traktor still shows the pre-stamp NML cache until **Check Consistency** (or delete-from-collection then re-import). There is no Reload Tag in Traktor 4.5.
 

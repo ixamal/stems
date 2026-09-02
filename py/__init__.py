@@ -14,7 +14,7 @@ Audio stays on disk under ``~/Music/stems_audio``. This package never writes
 ``collection.nml`` or Rekordbox ``master.db``. It refuses Apple Music's
 ``Media.localized`` tree. Every CLI writes ``log/`` (``.log``, JSON, charts)
 unless ``--quiet``. ``--execute`` opens an Aqua progress window until Close
-and mails ``david@alkalurops.org``.
+and mails the local notify address.
 
     python3 -m py
     .venv/bin/python -m py.exec.separate --path m3u/nuo_queue_test4.m3u

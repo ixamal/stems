@@ -75,7 +75,7 @@ def add_log_flags(parser: argparse.ArgumentParser) -> None:
         "--notify",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="Mail.app to david@alkalurops.org + Mac banner when the batch ends (default: on for --execute)",
+        help="Mail.app to the local notify address + Mac banner when the batch ends (default: on for --execute)",
     )
 
 

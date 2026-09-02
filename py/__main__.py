@@ -24,7 +24,7 @@ def main() -> None:
         print(f"      {desc}\n")
     print("Dry-run is the default. Pass --execute to write.")
     print("Verbose log/ JSON + charts are the default. Pass --quiet to skip.")
-    print("--execute opens an Aqua progress window until Close, and mails david@alkalurops.org. --no-gui / --no-notify skip.")
+    print("--execute opens an Aqua progress window until Close, and mails the local notify address. --no-gui / --no-notify skip.")
     print("Deps: pip install -r py/exec/requirements.txt  (root requirements.txt includes that).")
     print("35k+ crate: this CLI is the generator. NUO-STEMS (Alex / DJ NUO) is the licensed reference, not a batch tool.")
     print("Library remaps stay in music_migration. This package does not touch NML or master.db.")
