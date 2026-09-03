@@ -258,3 +258,15 @@ If the 35k crate leaves `ix`, the farm is **RunPod Secure Cloud** (L4 ~$0.49/hr 
 
 This `stems_audio` pass is complete: 1905 writes, then 16 pair drops, factory idle. Vocal-only / instrumental-only skip is in `py.exec.separate` for the next run. 35k sequential on this Mac is still ~92 days; RunPod stays the farm bookmark.
 
+
+---
+
+## 2026-09-03 — STEMIT: playlist in, stems out
+
+`ix` crate now drives this factory. **STEMIT** (`python3 -m ix_crate stemit --playlist "…"` in [ixamal/ix](https://github.com/ixamal/ix)) reads a Music.app playlist, **hardlinks** each mix into `~/Music/stems_audio/{Artist}/{Album}/`, writes a queue M3U under `~/local_tools/crate/stemit-queues/`, then runs `py.exec.separate --execute` here. Hardlink, not copy: one set of bytes, two names, so Apple Music keeps its file and the crate does not double 350 GB.
+
+First playlist — `Never Forget 50th v01`, **21 tracks**: `ok 42/42`, **0 fail**, 21 `.stem.m4a`, 20 full Rekordbox pairs, 1.50 GB, **78 min** wall (`wall_s_mean` 222 s ≈ 3.7 min/track, 38.5 s per audio minute). Matches the 3.8 min/track pace from the 1905-write batch. Lords Of Acid *Undress and Possess (Original Mix)* printed `we found none` and dropped **both** pair files while still muxing the container — the pair-parity rule from 2026-08-26 working on a live run.
+
+**Fix in this repo:** `_audio_separator_bin` now checks for `audio-separator` **next to `sys.executable`** before falling back to `shutil.which`. A caller that launches `.venv/bin/python -m py.exec.separate` without the RUNBOOK's `export PATH="$PWD/.venv/bin:$PATH"` used to fail every track with *audio-separator not on PATH*, even though the binary was sitting in that same venv. First STEMIT attempt died that way at 1/42. Crate also prepends the venv `bin` now, so both sides are covered.
+
+**Note for the next run:** the shell can look like it ran 8 hours. That is the Aqua HUD waiting on **Close**. Real time is `summary.wall_s_total` in the run JSON.

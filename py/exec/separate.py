@@ -77,6 +77,9 @@ class SeparatorError(RuntimeError):
 
 
 def _audio_separator_bin() -> str:
+    sibling = Path(sys.executable).resolve().parent / "audio-separator"
+    if sibling.is_file():
+        return str(sibling)
     path = shutil.which("audio-separator")
     if not path:
         raise SeparatorError(
