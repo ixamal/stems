@@ -37,6 +37,8 @@ def notify_to() -> str:
 
 
 TOOL_TITLES = {
+    "ix.crate.babylon": "BABYLON",
+    "ix.crate.hygiene": "Library hygiene",
     "py.exec.separate": "STEMS separation",
     "py.exec.validate_meta": "STEMS metadata QA",
     "py.exec.extract_stems": "STEMS extract",
